@@ -1,12 +1,12 @@
-# AI File Organizer 六阶段开发路线图
+# AI File Organizer 开发路线图
 
 | 属性 | 值 |
 | --- | --- |
-| 状态 | 规划中 |
+| 状态 | 阶段一已完成；阶段二规划中 |
 | 目标版本 | `v0.1.0` |
-| 最后更新 | `2026-08-16` |
+| 最后更新 | `2026-08-17` |
 
-安全相关阶段必须遵守 [安全模型](./SAFETY_MODEL.md)，目录职责见 [项目目录说明](./PROJECT_STRUCTURE.md)。
+产品范围见[产品需求文档](./PRD.md)，安全相关阶段必须遵守[安全模型](./SAFETY_MODEL.md)，模块职责见[系统架构](./ARCHITECTURE.md)。
 
 ## 路线图原则
 
@@ -20,18 +20,18 @@
 - 扫描和监听默认不跟随符号链接或 Windows Junction，只记录链接本身；链接目标必须由用户单独授权选择。
 - SQLite 数据统一存放在系统应用数据目录，不在扫描目录中写入数据库或旁车文件。
 - 文件索引允许重建，但索引重建必须保留操作历史。
-- 本文列出的所有代码和配置文件路径均为**计划路径（尚未创建）**。
+- 阶段一列出的工程边界已创建；阶段二至六中标注“尚未创建”的路径仍为计划路径。
 - 每个阶段开始前，需要进一步确认该阶段的接口、数据结构和验收细节。
 - 单元测试和集成测试随阶段一至五的功能同步建设；阶段六不再承担为既有功能补齐基础测试的职责。
 - “核心边界文件”是阶段必须建立的接口或持久化边界；“建议拆分文件”可在阶段设计时调整名称或合并，但不能改变阶段目标和安全规则。
 
-## 阶段一：工程基础
+## 阶段一：工程基础（已完成）
 
 ### 目标
 
 建立可运行、可检查的最小桌面应用工程，为后续功能提供清晰的前后端边界。
 
-### 应完善的功能
+### 已完成的功能
 
 - 初始化 Tauri 2、React、TypeScript、Rust 和 Tailwind CSS。
 - 设置应用名称、窗口和最小 Tauri 权限。
@@ -42,14 +42,13 @@
 ### 涉及目录
 
 - `src/app/`
-- `src/components/`
-- `src/lib/`
+- `src/test/`
 - `src-tauri/src/commands/`
 - `src-tauri/src/models/`
 - `src-tauri/src/services/`
 - `src-tauri/src/storage/`
 
-### 核心边界文件（尚未创建）
+### 已建立的核心边界文件
 
 - `package.json`
 - `vite.config.ts`
@@ -62,7 +61,7 @@
 - `src/app/App.test.tsx`
 - `src-tauri/tests/app_smoke.rs`
 
-### 建议拆分文件（尚未创建，可调整）
+### 已建立的模块文件
 
 - `src/app/App.tsx`
 - `src/app/styles.css`
@@ -71,13 +70,14 @@
 - `src-tauri/src/services/mod.rs`
 - `src-tauri/src/storage/mod.rs`
 
-### 完成标准
+### 验收结果（2026-08-17）
 
-- 应用能以开发模式启动。
-- TypeScript 构建、Rust 格式检查、`cargo check` 和 `cargo test` 全部通过。
-- 最小前端渲染测试和 Rust 应用装配测试通过。
-- 首页仅说明 Local First 定位和当前建设状态。
-- 后端没有通用文件操作或 Shell 执行 Command。
+- [x] 应用能以开发模式启动。
+- [x] TypeScript 构建、Rust 格式检查、`cargo check` 和 `cargo test` 全部通过。
+- [x] 最小前端渲染测试和 Rust 应用装配测试通过。
+- [x] Windows x64 调试 MSI 可成功构建。
+- [x] 首页仅说明 Local First 定位和当前建设状态。
+- [x] 后端没有通用文件操作或 Shell 执行 Command。
 
 ## 阶段二：目录扫描与 SQLite 索引
 

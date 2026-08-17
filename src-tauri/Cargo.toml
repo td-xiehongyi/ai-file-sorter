@@ -1,0 +1,27 @@
+[package]
+name = "ai-file-organizer"
+version = "0.1.0"
+description = "A Local First desktop file organizer"
+edition = "2024"
+
+[lints.rust]
+linker_messages = "allow"
+
+[lib]
+name = "ai_file_organizer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", default-features = false, features = [
+    "compression",
+    "dbus",
+    "dynamic-acl",
+    "wry",
+    "x11",
+] }
+
+[dev-dependencies]
+tauri = { version = "2", default-features = false, features = ["test"] }
