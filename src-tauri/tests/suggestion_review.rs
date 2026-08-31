@@ -226,6 +226,63 @@ fn accepting_a_generated_category_with_a_safe_name_targets_the_name_directory() 
 }
 
 #[test]
+fn template_result_review_uses_the_frozen_categories_without_root_configuration() {
+    let root = temp_root("template-snapshot");
+    let source = root.join("invoice.md");
+    fs::write(&source, "账单正文").unwrap();
+    let connection = database::open_memory_database().unwrap();
+    let record = AiAnalysisRecord {
+        id: "result-template".into(),
+        batch_id: "batch-template".into(),
+        root_path: root.to_string_lossy().into(),
+        source_path: source.to_string_lossy().into(),
+        content_fingerprint: fingerprint_file(&source).unwrap(),
+        provider: "ollama".into(),
+        model: "qwen2.5:7b".into(),
+        prompt_version: "phase5-v1".into(),
+        template_id: Some("finance-template".into()),
+        template_version: Some(3),
+        summary: "账单".into(),
+        keywords: vec!["账单".into()],
+        suggested_filename: "八月账单.md".into(),
+        category_id: Some("finance".into()),
+        confidence: 0.9,
+        reason: "财务资料".into(),
+        status: AnalysisResultStatus::Pending,
+        created_at: "1".into(),
+    };
+    let frozen_categories = vec![Category {
+        id: "finance".into(),
+        name: "财务".into(),
+        description: "账单与合同".into(),
+        directory_path: root.join("finance").to_string_lossy().into(),
+        enabled: true,
+    }];
+    ai_repository::insert_analysis_result_with_categories(&connection, &record, &frozen_categories)
+        .unwrap();
+
+    let draft = review_result(
+        &connection,
+        &record.id,
+        ReviewAction::Accept,
+        None,
+        Some("finance".into()),
+    )
+    .unwrap()
+    .unwrap();
+
+    assert!(matches!(
+        &draft.items[0],
+        OperationDraftItem::AiOrganize { category_id, .. } if category_id == "finance"
+    ));
+    assert_eq!(
+        ai_repository::read_analysis_result_categories(&connection, &record.id).unwrap(),
+        frozen_categories
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn rejecting_a_result_updates_status_without_creating_an_operation() {
     let root = temp_root("reject");
     let source = root.join("notes.md");

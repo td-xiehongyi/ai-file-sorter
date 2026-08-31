@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   cancelAnalysisBatch,
   confirmAnalysisResultPreview,
-  applyAiCategoryTemplate,
   deleteAiCategory,
   deleteAiCategoryTemplate,
   getAiCategoryTemplates,
@@ -12,12 +11,14 @@ import {
   getAnalysisBatch,
   getAnalysisResults,
   listenForAnalysisProgress,
+  renameAiCategoryTemplate,
   reviewAnalysisResult,
   saveAiCategoryTemplate,
   saveAiCategories,
+  setGlobalAiCategoryTemplate,
   startAnalysisBatch,
 } from "../../lib/ai-api";
-import type { AiAnalysisResult, AiCategory, AiCategoryTemplate, AnalysisProgress, AnalysisTask, ProviderStatus, TemplateCategory } from "../../types/ai";
+import type { AiAnalysisResult, AiCategory, AiCategoryTemplate, AnalysisCategorySource, AnalysisProgress, AnalysisTask, ProviderStatus, TemplateCategory } from "../../types/ai";
 import type { OperationDraft, OperationPreviewResponse } from "../../types/operations";
 import type { SearchEntry } from "../../types/search";
 
@@ -39,21 +40,10 @@ const supportedExtensions = new Set([
 const supportedSpecialNames = new Set(["dockerfile", "makefile", "cmakelists.txt"]);
 const defaultCategoryName = "新分类";
 
-function directoryNameOf(path: string): string {
-  const trimmed = path.trim().replace(/[\\/]+$/, "");
-  return trimmed.split(/[\\/]/).at(-1) ?? "";
-}
-
 function categoryDirectory(rootPath: string, categoryId: string): string {
   const root = rootPath.trim().replace(/[\\/]+$/, "");
   const id = categoryId.trim();
   return id ? `${root}/${id}` : root;
-}
-
-function categoryNameForDirectory(name: string, directory: string): string {
-  const trimmed = name.trim();
-  if (trimmed && trimmed !== defaultCategoryName) return trimmed;
-  return directoryNameOf(directory) || trimmed || defaultCategoryName;
 }
 
 function isGeneratedCategoryId(id: string): boolean {
@@ -79,6 +69,8 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
   const [templates, setTemplates] = useState<AiCategoryTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateDraft, setTemplateDraft] = useState<AiCategoryTemplate | null>(null);
+  const [templateDirty, setTemplateDirty] = useState(false);
+  const [analysisSource, setAnalysisSource] = useState<AnalysisCategorySource | null>(null);
   const [savedCategoryIds, setSavedCategoryIds] = useState<Set<string>>(new Set());
   const [batchId, setBatchId] = useState<string | null>(null);
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
@@ -94,13 +86,21 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
     [selectedEntries],
   );
   const hasEnabledCategory = categories.some((category) => category.enabled);
+  const selectedAnalysisTemplate = analysisSource?.kind === "template"
+    ? templates.find((template) => template.id === analysisSource.template_id)
+    : null;
+  const hasAnalysisCategory = analysisSource?.kind === "template"
+    ? Boolean(selectedAnalysisTemplate?.categories.some((category) => category.default_enabled))
+    : hasEnabledCategory;
   const analysisBlockedReason = setupLoading
     ? "正在加载模型状态和分类配置…"
     : !provider?.available
       ? `本地模型不可用：${provider?.message ?? "无法读取模型状态。"}。请确认 Ollama 已启动且模型名称正确，然后刷新状态。`
       : supportedFiles.length === 0
         ? "请在文件列表中勾选至少一个 TXT、MD、PDF、DOCX 或常见代码/配置文件。"
-        : !hasEnabledCategory
+        : !analysisSource
+          ? "请选择一个分类方案后再开始分析。"
+          : !hasAnalysisCategory
           ? "请先配置并启用至少一个分类，AI 才能生成安全的整理建议。"
           : busy
             ? cancelRequested
@@ -120,8 +120,14 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
           setCategories(storedCategories);
           setSavedCategoryIds(new Set(storedCategories.map((category) => category.id)));
           setTemplates(storedTemplates);
-          setSelectedTemplateId((current) => current || storedTemplates[0]?.id || "");
-          setTemplateDraft(storedTemplates[0] ?? null);
+          const globalTemplate = storedTemplates.find((template) => template.is_global);
+          const preferred = globalTemplate ?? storedTemplates[0];
+          setSelectedTemplateId(preferred?.id ?? "");
+          setTemplateDraft(preferred ?? null);
+          setTemplateDirty(false);
+          setAnalysisSource(globalTemplate
+            ? { kind: "template", template_id: globalTemplate.id, expected_version: globalTemplate.version }
+            : null);
         }
       })
       .catch((cause) => {
@@ -220,6 +226,11 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
   }
 
   async function start() {
+    const source = analysisSource;
+    if (!source) {
+      setError("请选择一个分类方案后再开始分析。");
+      return;
+    }
     setError(null);
     setResults([]);
     setCancelRequested(false);
@@ -229,6 +240,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
         root_path: rootPath,
         file_paths: supportedFiles.map((entry) => entry.normalized_path),
         model,
+        category_source: source,
       });
       setBatchId(response.batch_id);
       setProgress({ batch_id: response.batch_id, phase: "processing", completed_files: 0, total_files: supportedFiles.length, current_path: null, error_count: 0 });
@@ -293,24 +305,32 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
   }
 
   function selectTemplate(templateId: string) {
+    if (templateDirty && !window.confirm("当前模板有未保存的修改，确定放弃并切换吗？")) return;
     setSelectedTemplateId(templateId);
     setTemplateDraft(templates.find((template) => template.id === templateId) ?? null);
+    setTemplateDirty(false);
   }
 
   function newTemplate() {
-    const draft: AiCategoryTemplate = {
-      id: `template_${templates.length + 1}`,
-      name: "新模板",
-      version: 0,
-      categories: categories.map((category) => ({
+    if (templateDirty && !window.confirm("当前模板有未保存的修改，确定放弃并新建模板吗？")) return;
+    const seededCategories: TemplateCategory[] = categories.length > 0
+      ? categories.map((category) => ({
         id: category.id,
         name: category.name,
         description: category.description,
         default_enabled: category.enabled,
-      })),
+      }))
+      : [{ id: "category_1", name: defaultCategoryName, description: "", default_enabled: true }];
+    const draft: AiCategoryTemplate = {
+      id: `template_${Date.now()}`,
+      name: "新模板",
+      version: 0,
+      is_global: false,
+      categories: seededCategories,
     };
     setTemplateDraft(draft);
     setSelectedTemplateId(draft.id);
+    setTemplateDirty(true);
   }
 
   function addTemplateCategory() {
@@ -324,6 +344,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
         default_enabled: true,
       }],
     });
+    setTemplateDirty(true);
   }
 
   function removeTemplateCategory(index: number) {
@@ -336,6 +357,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
       ...templateDraft,
       categories: templateDraft.categories.filter((_, currentIndex) => currentIndex !== index),
     });
+    setTemplateDirty(true);
   }
 
   async function saveTemplate() {
@@ -350,46 +372,73 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
       setTemplates((current) => [...current.filter((template) => template.id !== saved.id), saved]);
       setSelectedTemplateId(saved.id);
       setTemplateDraft(saved);
+      setTemplateDirty(false);
+      setAnalysisSource((current) => current?.kind === "template" && current.template_id === saved.id
+        ? { ...current, expected_version: saved.version }
+        : current);
     } catch (cause) {
-      setError(messageOf(cause, "无法保存全局分类模板。"));
+      setError(messageOf(cause, "无法保存分类模板。"));
     }
   }
 
-  async function removeTemplate() {
-    if (!templateDraft || !window.confirm(`确定删除模板“${templateDraft.name}”吗？已应用到目录的配置不会改变。`)) return;
+  async function renameTemplate(target: AiCategoryTemplate | null = templateDraft) {
+    if (!target || target.is_global) return;
+    const name = window.prompt("请输入新的模板名称", target.name)?.trim();
+    if (!name || name === target.name) return;
     setError(null);
     try {
-      await deleteAiCategoryTemplate(templateDraft.id);
-      const remaining = templates.filter((template) => template.id !== templateDraft.id);
+      const renamed = await renameAiCategoryTemplate(target.id, name);
+      setTemplates((current) => current.map((template) => template.id === renamed.id ? renamed : template));
+      setTemplateDraft(renamed);
+      setTemplateDirty(false);
+    } catch (cause) {
+      setError(messageOf(cause, "无法重命名分类模板。"));
+    }
+  }
+
+  async function makeGlobal(target: AiCategoryTemplate | null = templateDraft) {
+    if (!target || target.is_global) return;
+    if (!window.confirm(`确定将“${target.name}”设为全局模板吗？它会成为文件浏览页的默认分类方案。`)) return;
+    setError(null);
+    try {
+      const globalTemplate = await setGlobalAiCategoryTemplate(target.id);
+      setTemplates((current) => current.map((template) => template.id === globalTemplate.id ? globalTemplate : { ...template, is_global: false }));
+      setTemplateDraft(globalTemplate);
+      setSelectedTemplateId(globalTemplate.id);
+      setTemplateDirty(false);
+      setAnalysisSource({ kind: "template", template_id: globalTemplate.id, expected_version: globalTemplate.version });
+    } catch (cause) {
+      setError(messageOf(cause, "无法设置全局分类模板。"));
+    }
+  }
+
+  async function removeTemplate(target: AiCategoryTemplate | null = templateDraft) {
+    if (!target || target.is_global || !window.confirm(`确定删除模板“${target.name}”吗？已保存的文件和历史结果不会改变。`)) return;
+    setError(null);
+    try {
+      await deleteAiCategoryTemplate(target.id);
+      const remaining = templates.filter((template) => template.id !== target.id);
       setTemplates(remaining);
       setSelectedTemplateId(remaining[0]?.id ?? "");
       setTemplateDraft(remaining[0] ?? null);
+      setTemplateDirty(false);
+      setAnalysisSource((current) => current?.kind === "template" && current.template_id === target.id ? null : current);
     } catch (cause) {
-      setError(messageOf(cause, "无法删除全局分类模板。"));
+      setError(messageOf(cause, "无法删除分类模板。"));
     }
   }
 
-  async function applyTemplate() {
-    if (!templateDraft) return;
-    setError(null);
-    const mapped: AiCategory[] = [];
-    for (const templateCategory of templateDraft.categories) {
-      const directory = categoryDirectory(rootPath, templateCategory.id);
-      mapped.push({
-        id: templateCategory.id,
-        name: categoryNameForDirectory(templateCategory.name, directory),
-        description: templateCategory.description,
-        directory_path: directory,
-        enabled: templateCategory.default_enabled,
-      });
+  function chooseAnalysisSource(value: string) {
+    if (value === "root_custom") {
+      setAnalysisSource({ kind: "root_custom" });
+      return;
     }
-    try {
-      const applied = await applyAiCategoryTemplate({ root_path: rootPath, template_id: templateDraft.id, categories: mapped });
-      setCategories(applied);
-      setSavedCategoryIds(new Set(applied.map((category) => category.id)));
-    } catch (cause) {
-      setError(messageOf(cause, "无法应用全局分类模板。"));
+    if (!value.startsWith("template:")) {
+      setAnalysisSource(null);
+      return;
     }
+    const template = templates.find((candidate) => candidate.id === value.slice("template:".length));
+    setAnalysisSource(template ? { kind: "template", template_id: template.id, expected_version: template.version } : null);
   }
 
   async function review(item: AiAnalysisResult, action: "accept" | "reject") {
@@ -467,17 +516,29 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
       </div>
 
       {configOpen && <div className="mt-4 space-y-4 rounded-xl border border-white/10 p-4">
-        <div className="space-y-3 rounded-xl border border-violet-200/10 bg-violet-200/[0.03] p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold text-violet-100">全局分类模板</h3><button type="button" onClick={newTemplate} className="rounded-lg border border-white/10 px-2 py-1 text-xs">新建模板</button></div>
-          <div className="flex flex-wrap gap-2">
-            <select aria-label="全局分类模板" value={selectedTemplateId} onChange={(event) => selectTemplate(event.target.value)} className="min-w-48 rounded-lg bg-slate-950/60 px-3 py-2 text-sm"><option value="">选择模板</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · v{template.version}</option>)}</select>
-            <button type="button" disabled={!templateDraft} onClick={() => void applyTemplate()} className="rounded-lg border border-violet-200/30 px-3 py-2 text-xs disabled:opacity-40">应用模板</button>
-            <button type="button" disabled={!templateDraft} onClick={() => void removeTemplate()} className="rounded-lg border border-rose-200/30 px-3 py-2 text-xs text-rose-100 disabled:opacity-40">删除模板</button>
+        <div className="space-y-4 rounded-xl border border-violet-200/10 bg-violet-200/[0.03] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">设置</p><h3 className="mt-1 text-base font-semibold text-violet-100">模板库</h3><p className="mt-1 text-xs text-slate-400">管理分类模板；模板只在分析前选择，不会自动修改当前目录。</p></div><button type="button" onClick={newTemplate} className="rounded-lg border border-white/10 px-3 py-2 text-xs">新建模板</button></div>
+          <div className="grid gap-4 lg:grid-cols-[minmax(210px,0.75fr)_minmax(0,1.5fr)]">
+            <div className="space-y-2" aria-label="模板列表">
+              {templates.length === 0 && <p className="rounded-lg border border-dashed border-white/10 p-4 text-xs text-slate-500">还没有保存的模板。</p>}
+              {templates.map((template) => <div key={template.id} className={`rounded-lg border p-2 ${selectedTemplateId === template.id ? "border-violet-300/50 bg-violet-200/[0.08]" : "border-white/10"}`}>
+                <button type="button" onClick={() => selectTemplate(template.id)} className="w-full rounded-md px-2 py-2 text-left text-sm text-slate-200 hover:bg-white/[0.04]"><span className="font-medium">{template.name}</span><span className="mt-1 block text-xs text-slate-500">v{template.version} · {template.is_global ? "当前全局" : "已保存"}</span></button>
+                <div className="flex flex-wrap gap-2 px-2 pb-1 pt-1"><button type="button" onClick={() => selectTemplate(template.id)} className="text-xs text-slate-300 hover:text-white">查看/修改</button>{!template.is_global && <><button type="button" onClick={() => { setSelectedTemplateId(template.id); setTemplateDraft(template); setTemplateDirty(false); void renameTemplate(template); }} className="text-xs text-slate-300 hover:text-white">重命名</button><button type="button" onClick={() => { setSelectedTemplateId(template.id); setTemplateDraft(template); setTemplateDirty(false); void makeGlobal(template); }} className="text-xs text-slate-300 hover:text-white">设为全局</button><button type="button" onClick={() => { setSelectedTemplateId(template.id); setTemplateDraft(template); setTemplateDirty(false); void removeTemplate(template); }} className="text-xs text-rose-200 hover:text-rose-100">删除模板</button></>}</div>
+              </div>)}
+            </div>
+            <div className="space-y-4 rounded-lg border border-white/10 bg-slate-950/20 p-4">
+              {!templateDraft ? <p className="text-sm text-slate-400">选择一个模板开始编辑，或新建模板。</p> : <>
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="text-base font-semibold text-white">{templateDraft.name}</h4><p className="mt-1 text-xs text-slate-500">模板版本 v{templateDraft.version}</p></div><span className={`rounded-full px-2 py-1 text-xs ${templateDraft.is_global ? "bg-emerald-300/15 text-emerald-200" : "bg-white/5 text-slate-400"}`}>{templateDraft.is_global ? "当前全局" : "已保存"}</span></div>
+                <div className="flex flex-wrap gap-2">{!templateDraft.is_global && <><button type="button" onClick={() => void renameTemplate()} className="rounded-lg border border-white/10 px-3 py-2 text-xs">重命名</button><button type="button" onClick={() => void makeGlobal()} className="rounded-lg border border-emerald-200/30 px-3 py-2 text-xs text-emerald-100">设为全局</button><button type="button" onClick={() => void removeTemplate()} className="rounded-lg border border-rose-200/30 px-3 py-2 text-xs text-rose-100">删除模板</button></>}</div>
+                <label className="block text-xs text-slate-400">模板名称<input aria-label="模板名称" disabled={templateDraft.is_global || templateDraft.version > 0} value={templateDraft.name} onChange={(event) => { setTemplateDraft({ ...templateDraft, name: event.target.value }); setTemplateDirty(true); }} className="mt-1 w-full rounded-lg bg-slate-950/60 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60" /></label>
+                <div className="space-y-2">{templateDraft.categories.map((category, index) => <div key={`${category.id}-${index}`} className="grid gap-2 rounded-lg border border-white/5 p-3 md:grid-cols-[1fr_1.4fr_auto_auto]"><input aria-label={`模板分类 ${index + 1} 名称`} value={category.name} onChange={(event) => { setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "name", event.target.value) }); setTemplateDirty(true); }} className="rounded-lg bg-slate-950/60 px-3 py-2 text-sm" /><input aria-label={`模板分类 ${index + 1} 描述`} value={category.description} onChange={(event) => { setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "description", event.target.value) }); setTemplateDirty(true); }} className="rounded-lg bg-slate-950/60 px-3 py-2 text-sm" /><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={category.default_enabled} onChange={(event) => { setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "default_enabled", event.target.checked) }); setTemplateDirty(true); }} />默认启用</label><button type="button" onClick={() => removeTemplateCategory(index)} className="rounded-lg border border-rose-200/30 px-2 py-1 text-xs text-rose-100">删除模板分类 {index + 1}</button><details className="rounded-lg border border-white/10 px-3 py-2 md:col-span-full"><summary className="cursor-pointer text-xs text-slate-400">高级设置</summary><label className="mt-2 block text-xs text-slate-400">分类 ID<input aria-label={`模板分类 ${index + 1} ID`} value={category.id} onChange={(event) => { setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "id", event.target.value) }); setTemplateDirty(true); }} className="mt-1 w-full rounded-lg bg-slate-950/60 px-3 py-2 text-sm text-slate-300" /></label></details></div>)}<button type="button" onClick={addTemplateCategory} className="rounded-lg border border-white/10 px-3 py-2 text-xs">新增模板分类</button></div>
+                <div className="flex justify-end"><button type="button" onClick={() => void saveTemplate()} className="rounded-lg bg-violet-300 px-4 py-2 text-xs font-semibold text-slate-950">保存模板</button></div>
+              </>}
+            </div>
           </div>
-          {templateDraft && <div className="space-y-2"><input aria-label="模板名称" value={templateDraft.name} onChange={(event) => setTemplateDraft({ ...templateDraft, name: event.target.value })} className="w-full rounded-lg bg-slate-950/60 px-3 py-2 text-sm" />{templateDraft.categories.map((category, index) => <div key={`${category.id}-${index}`} className="grid gap-2 rounded-lg border border-white/5 p-2 md:grid-cols-[1fr_1.4fr_auto_auto]"><input aria-label={`模板分类 ${index + 1} 名称`} value={category.name} onChange={(event) => setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "name", event.target.value) })} className="rounded-lg bg-slate-950/60 px-3 py-2 text-sm" /><input aria-label={`模板分类 ${index + 1} 描述`} value={category.description} onChange={(event) => setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "description", event.target.value) })} className="rounded-lg bg-slate-950/60 px-3 py-2 text-sm" /><label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={category.default_enabled} onChange={(event) => setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "default_enabled", event.target.checked) })} />默认启用</label><button type="button" onClick={() => removeTemplateCategory(index)} className="rounded-lg border border-rose-200/30 px-2 py-1 text-xs text-rose-100">删除模板分类 {index + 1}</button><details className="rounded-lg border border-white/10 px-3 py-2 md:col-span-full"><summary className="cursor-pointer text-xs text-slate-400">高级设置</summary><label className="mt-2 block text-xs text-slate-400">分类 ID<input aria-label={`模板分类 ${index + 1} ID`} value={category.id} onChange={(event) => setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, "id", event.target.value) })} className="mt-1 w-full rounded-lg bg-slate-950/60 px-3 py-2 text-sm text-slate-300" /></label></details></div>)}<button type="button" onClick={addTemplateCategory} className="rounded-lg border border-white/10 px-3 py-2 text-xs">新增模板分类</button></div>}
-          {templateDraft && <button type="button" onClick={() => void saveTemplate()} className="rounded-lg bg-violet-300 px-3 py-2 text-xs font-semibold text-slate-950">保存模板</button>}
         </div>
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-xl border border-white/10 p-4">
+        <div><h3 className="text-sm font-semibold text-slate-200">当前目录自定义分类</h3><p className="mt-1 text-xs text-slate-500">仅影响当前授权目录，可独立于模板库保存。</p></div>
         {categories.map((category, index) => <div key={`${category.id}-${index}`} className="grid gap-2 rounded-lg border border-white/5 p-2 md:grid-cols-[1fr_1.4fr_1.4fr_auto_auto]">
           <input aria-label={`分类 ${index + 1} 名称`} value={category.name} onChange={(event) => updateCategory(index, "name", event.target.value)} className="rounded-lg bg-slate-950/60 px-3 py-2 text-sm" />
           <input aria-label={`分类 ${index + 1} 描述`} value={category.description} onChange={(event) => updateCategory(index, "description", event.target.value)} className="rounded-lg bg-slate-950/60 px-3 py-2 text-sm" />
@@ -492,6 +553,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview }: Props) {
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-rose-300/20 bg-rose-300/[0.08] p-3 text-sm text-rose-100">{error}</div>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
+        {selectedEntries.length > 0 && <><label className="min-w-60 text-xs text-slate-400">分类方案<select aria-label="分类方案" value={analysisSource?.kind === "template" ? `template:${analysisSource.template_id}` : analysisSource?.kind === "root_custom" ? "root_custom" : ""} onChange={(event) => chooseAnalysisSource(event.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"><option value="">请选择分类方案</option>{templates.map((template) => <option key={template.id} value={`template:${template.id}`}>{template.name}{template.is_global ? " · 全局" : ""} · v{template.version}</option>)}<option value="root_custom">当前目录自定义分类</option></select></label><button type="button" onClick={() => setConfigOpen(true)} className="self-end rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300">管理分类</button></>}
         <button type="button" disabled={analysisBlockedReason !== null} onClick={() => void start()} className="rounded-xl bg-violet-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">分析所选文件（{supportedFiles.length}）</button>
         {busy && batchId && <button type="button" disabled={cancelRequested} onClick={() => void cancel()} className="rounded-xl border border-white/10 px-4 py-2 text-sm disabled:opacity-40">{cancelRequested ? "取消中…" : "取消分析"}</button>}
         {selectedEntries.length > supportedFiles.length && <span className="text-xs text-slate-500">已忽略不支持的格式</span>}

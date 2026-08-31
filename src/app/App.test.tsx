@@ -35,8 +35,11 @@ const aiApi = vi.hoisted(() => ({
   getAnalysisBatch: vi.fn(),
   getAnalysisResults: vi.fn(),
   listenForAnalysisProgress: vi.fn(),
+  renameAiCategoryTemplate: vi.fn(),
   reviewAnalysisResult: vi.fn(),
   saveAiCategories: vi.fn(),
+  saveAiCategoryTemplate: vi.fn(),
+  setGlobalAiCategoryTemplate: vi.fn(),
   startAnalysisBatch: vi.fn(),
 }));
 
@@ -66,6 +69,7 @@ describe("App", () => {
     aiApi.getAiProviderStatus.mockResolvedValue({ available: true, provider: "ollama", model: "qwen2.5:7b", message: "模型已就绪" });
     aiApi.getAiCategories.mockResolvedValue([{ id: "work", name: "工作", description: "", directory_path: "C:/Documents/work", enabled: true }]);
     aiApi.getAiCategoryTemplates.mockResolvedValue([]);
+    aiApi.saveAiCategoryTemplate.mockResolvedValue({ id: "template", name: "模板", version: 1, is_global: false, categories: [{ id: "work", name: "工作", description: "", default_enabled: true }] });
     aiApi.listenForAnalysisProgress.mockResolvedValue(() => undefined);
     aiApi.getAnalysisResults.mockResolvedValue([]);
     aiApi.cancelAnalysisBatch.mockResolvedValue(undefined);

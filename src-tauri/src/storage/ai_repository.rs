@@ -14,14 +14,38 @@ pub fn upsert_category_template(
     now: &str,
 ) -> rusqlite::Result<CategoryTemplate> {
     let transaction = connection.transaction()?;
-    let previous_version: Option<i64> = transaction
+    let previous: Option<(String, i64)> = transaction
         .query_row(
-            "SELECT version FROM ai_category_templates WHERE template_id = ?1",
+            "SELECT name, version FROM ai_category_templates WHERE template_id = ?1",
             [template_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()?;
-    let version = previous_version.unwrap_or(0) + 1;
+    if previous
+        .as_ref()
+        .is_some_and(|(previous_name, _)| previous_name != name)
+    {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "修改模板内容时不能重命名模板",
+            ),
+        )));
+    }
+    let duplicate_name = transaction.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM ai_category_templates
+            WHERE unicode_lower(name) = unicode_lower(?1) AND template_id <> ?2
+         )",
+        params![name, template_id],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if duplicate_name {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+            std::io::Error::new(std::io::ErrorKind::AlreadyExists, "模板名称已存在"),
+        )));
+    }
+    let version = previous.map_or(1, |(_, version)| version + 1);
     transaction.execute(
         "INSERT INTO ai_category_templates(template_id, name, version, created_at, updated_at)
          VALUES (?1, ?2, ?3, COALESCE((SELECT created_at FROM ai_category_templates WHERE template_id = ?1), ?4), ?4)
@@ -48,29 +72,38 @@ pub fn upsert_category_template(
         }
     }
     transaction.commit()?;
+    let is_global = read_global_category_template_id(connection)?.as_deref() == Some(template_id);
     Ok(CategoryTemplate {
         id: template_id.into(),
         name: name.into(),
         version,
+        is_global,
         categories: categories.to_vec(),
     })
 }
 
 pub fn read_category_templates(connection: &Connection) -> rusqlite::Result<Vec<CategoryTemplate>> {
     let mut statement = connection.prepare(
-        "SELECT template_id, name, version FROM ai_category_templates ORDER BY template_id",
+        "SELECT templates.template_id, templates.name, templates.version,
+                CASE WHEN settings.global_template_id = templates.template_id THEN 1 ELSE 0 END
+         FROM ai_category_templates AS templates
+         LEFT JOIN ai_template_settings AS settings ON settings.singleton_id = 1
+         ORDER BY templates.template_id",
     )?;
-    let headers: Vec<(String, String, i64)> = statement
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+    let headers: Vec<(String, String, i64, bool)> = statement
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
         .collect::<Result<_, _>>()?;
     headers
         .into_iter()
-        .map(|(id, name, version)| {
+        .map(|(id, name, version, is_global)| {
             Ok(CategoryTemplate {
                 categories: read_template_categories(connection, &id)?,
                 id,
                 name,
                 version,
+                is_global,
             })
         })
         .collect()
@@ -82,40 +115,135 @@ pub fn read_category_template(
 ) -> rusqlite::Result<Option<CategoryTemplate>> {
     let header = connection
         .query_row(
-            "SELECT template_id, name, version FROM ai_category_templates WHERE template_id = ?1",
+            "SELECT templates.template_id, templates.name, templates.version,
+                    CASE WHEN settings.global_template_id = templates.template_id THEN 1 ELSE 0 END
+             FROM ai_category_templates AS templates
+             LEFT JOIN ai_template_settings AS settings ON settings.singleton_id = 1
+             WHERE templates.template_id = ?1",
             [template_id],
             |row| {
                 let id: String = row.get(0)?;
                 let name: String = row.get(1)?;
                 let version: i64 = row.get(2)?;
-                Ok((id, name, version))
+                let is_global: bool = row.get(3)?;
+                Ok((id, name, version, is_global))
             },
         )
         .optional()?;
     header
-        .map(|(id, name, version)| {
+        .map(|(id, name, version, is_global)| {
             Ok(CategoryTemplate {
                 categories: read_template_categories(connection, &id)?,
                 id,
                 name,
                 version,
+                is_global,
             })
         })
         .transpose()
 }
 
-pub fn delete_category_template(
+pub fn read_global_category_template_id(
+    connection: &Connection,
+) -> rusqlite::Result<Option<String>> {
+    connection.query_row(
+        "SELECT global_template_id FROM ai_template_settings WHERE singleton_id = 1",
+        [],
+        |row| row.get(0),
+    )
+}
+
+pub fn set_global_category_template(
+    connection: &mut Connection,
+    template_id: &str,
+    now: &str,
+) -> rusqlite::Result<bool> {
+    let transaction = connection.transaction()?;
+    let exists = transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM ai_category_templates WHERE template_id = ?1)",
+        [template_id],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if !exists {
+        return Ok(false);
+    }
+    transaction.execute(
+        "INSERT INTO ai_template_settings(singleton_id, global_template_id, updated_at)
+         VALUES (1, ?1, ?2)
+         ON CONFLICT(singleton_id) DO UPDATE SET
+             global_template_id = excluded.global_template_id,
+             updated_at = excluded.updated_at",
+        params![template_id, now],
+    )?;
+    transaction.commit()?;
+    Ok(true)
+}
+
+pub fn rename_category_template(
     connection: &Connection,
     template_id: &str,
+    name: &str,
+    now: &str,
 ) -> rusqlite::Result<bool> {
-    connection.execute(
+    Ok(connection.execute(
+        "UPDATE ai_category_templates
+         SET name = ?2, updated_at = ?3
+         WHERE template_id = ?1
+           AND NOT EXISTS (
+               SELECT 1 FROM ai_template_settings
+               WHERE singleton_id = 1 AND global_template_id = ?1
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM ai_category_templates
+               WHERE unicode_lower(name) = unicode_lower(?2) AND template_id <> ?1
+           )",
+        params![template_id, name, now],
+    )? == 1)
+}
+
+pub fn category_template_name_exists(
+    connection: &Connection,
+    name: &str,
+    excluding_template_id: Option<&str>,
+) -> rusqlite::Result<bool> {
+    connection.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM ai_category_templates
+            WHERE unicode_lower(name) = unicode_lower(?1)
+              AND (?2 IS NULL OR template_id <> ?2)
+         )",
+        params![name, excluding_template_id],
+        |row| row.get(0),
+    )
+}
+
+pub fn delete_category_template(
+    connection: &mut Connection,
+    template_id: &str,
+) -> rusqlite::Result<bool> {
+    let transaction = connection.transaction()?;
+    let is_global = transaction.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM ai_template_settings
+            WHERE singleton_id = 1 AND global_template_id = ?1
+         )",
+        [template_id],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if is_global {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "全局模板不能删除"),
+        )));
+    }
+    transaction.execute(
         "DELETE FROM ai_root_category_templates WHERE template_id = ?1",
         [template_id],
     )?;
-    let deleted = connection.execute(
+    let deleted = transaction.execute(
         "DELETE FROM ai_category_templates WHERE template_id = ?1",
         [template_id],
     )? == 1;
+    transaction.commit()?;
     Ok(deleted)
 }
 
@@ -267,12 +395,21 @@ pub fn insert_analysis_result(
     connection: &Connection,
     record: &AiAnalysisRecord,
 ) -> rusqlite::Result<()> {
+    insert_analysis_result_with_categories(connection, record, &[])
+}
+
+pub fn insert_analysis_result_with_categories(
+    connection: &Connection,
+    record: &AiAnalysisRecord,
+    categories: &[Category],
+) -> rusqlite::Result<()> {
     connection.execute(
         "INSERT INTO ai_analysis_results (
             id, batch_id, root_path, source_path, content_fingerprint, provider, model,
             prompt_version, template_id, template_version, summary, keywords_json,
-            suggested_filename, category_id, confidence, reason, status, created_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+            suggested_filename, category_id, confidence, reason, status, created_at,
+            category_snapshot_json
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
         params![
             record.id,
             record.batch_id,
@@ -293,9 +430,25 @@ pub fn insert_analysis_result(
             record.reason,
             record.status.as_str(),
             record.created_at,
+            serde_json::to_string(categories)
+                .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?,
         ],
     )?;
     Ok(())
+}
+
+pub fn read_analysis_result_categories(
+    connection: &Connection,
+    result_id: &str,
+) -> rusqlite::Result<Vec<Category>> {
+    let snapshot: String = connection.query_row(
+        "SELECT category_snapshot_json FROM ai_analysis_results WHERE id = ?1",
+        [result_id],
+        |row| row.get(0),
+    )?;
+    serde_json::from_str(&snapshot).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(error))
+    })
 }
 
 pub fn read_batch_results(

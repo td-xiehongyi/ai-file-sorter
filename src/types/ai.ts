@@ -24,8 +24,13 @@ export type AiCategoryTemplate = {
   id: string;
   name: string;
   version: number;
+  is_global: boolean;
   categories: TemplateCategory[];
 };
+
+export type AnalysisCategorySource =
+  | { kind: "template"; template_id: string; expected_version: number }
+  | { kind: "root_custom" };
 
 export type AnalysisResultStatus = "pending" | "accepted" | "rejected" | "expired";
 export type AnalysisBatchStatus = "queued" | "running" | "cancelling" | "completed" | "failed" | "cancelled";

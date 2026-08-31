@@ -56,8 +56,14 @@ pub fn review_result(
             .map_err(|error| error.to_string())?;
         return Err("文件内容已变化，AI 分析结果已过期".into());
     }
-    let categories = ai_repository::read_categories(connection, &record.root_path)
+    let frozen_categories = ai_repository::read_analysis_result_categories(connection, result_id)
         .map_err(|error| error.to_string())?;
+    let categories = if frozen_categories.is_empty() {
+        ai_repository::read_categories(connection, &record.root_path)
+            .map_err(|error| error.to_string())?
+    } else {
+        frozen_categories
+    };
     let filename = suggested_filename.unwrap_or_else(|| record.suggested_filename.clone());
     let validated = validate_suggestion(
         Path::new(&record.source_path),

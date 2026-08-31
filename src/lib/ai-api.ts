@@ -5,6 +5,7 @@ import type {
   AiAnalysisResult,
   AiCategory,
   AiCategoryTemplate,
+  AnalysisCategorySource,
   AnalysisProgress,
   AnalysisTask,
   ProviderStatus,
@@ -35,6 +36,17 @@ export function saveAiCategoryTemplate(request: {
   return invoke("save_ai_category_template", { request });
 }
 
+export function renameAiCategoryTemplate(
+  templateId: string,
+  name: string,
+): Promise<AiCategoryTemplate> {
+  return invoke("rename_ai_category_template", { templateId, name });
+}
+
+export function setGlobalAiCategoryTemplate(templateId: string): Promise<AiCategoryTemplate> {
+  return invoke("set_global_ai_category_template", { templateId });
+}
+
 export function deleteAiCategoryTemplate(templateId: string): Promise<void> {
   return invoke("delete_ai_category_template", { templateId });
 }
@@ -55,6 +67,7 @@ export function startAnalysisBatch(request: {
   root_path: string;
   file_paths: string[];
   model: string;
+  category_source?: AnalysisCategorySource;
 }): Promise<{ batch_id: string }> {
   return invoke("start_analysis_batch", { request });
 }

@@ -156,7 +156,7 @@ fn analyze_one(
         status: AnalysisResultStatus::Pending,
         created_at: now_string(),
     };
-    ai_repository::insert_analysis_result(connection, &record)
+    ai_repository::insert_analysis_result_with_categories(connection, &record, categories)
         .map_err(|error| format!("无法保存 AI 分析结果：{error}"))?;
     Ok(record)
 }

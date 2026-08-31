@@ -25,6 +25,8 @@ pub fn app_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Buil
             commands::ai::get_ai_categories,
             commands::ai::get_ai_category_templates,
             commands::ai::save_ai_category_template,
+            commands::ai::rename_ai_category_template,
+            commands::ai::set_global_ai_category_template,
             commands::ai::delete_ai_category_template,
             commands::ai::apply_ai_category_template,
             commands::ai::delete_ai_category,

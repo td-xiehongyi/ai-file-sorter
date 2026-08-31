@@ -31,6 +31,7 @@ pub struct CategoryTemplate {
     pub id: String,
     pub name: String,
     pub version: i64,
+    pub is_global: bool,
     pub categories: Vec<TemplateCategory>,
 }
 

@@ -24,7 +24,21 @@ pub struct StartAnalysisRequest {
     pub root_path: String,
     pub file_paths: Vec<String>,
     pub model: Option<String>,
+    #[serde(default)]
+    pub category_source: Option<AnalysisCategorySource>,
 }
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AnalysisCategorySource {
+    Template {
+        template_id: String,
+        expected_version: i64,
+    },
+    RootCustom,
+}
+
+type ResolvedAnalysisCategories = (Vec<Category>, Option<(String, i64)>);
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct StartAnalysisResponse {
@@ -147,6 +161,14 @@ pub fn save_ai_category_template<R: Runtime>(
     }
     let categories = validate_template_categories(request.categories)?;
     let mut connection = open_database(&app)?;
+    let existing = ai_repository::read_category_template(&connection, &request.id)
+        .map_err(|error| error.to_string())?;
+    validate_saved_template_name(existing.as_ref(), name)?;
+    if ai_repository::category_template_name_exists(&connection, name, Some(&request.id))
+        .map_err(|error| error.to_string())?
+    {
+        return Err("模板名称已存在".to_string().into());
+    }
     ai_repository::upsert_category_template(
         &mut connection,
         &request.id,
@@ -158,11 +180,68 @@ pub fn save_ai_category_template<R: Runtime>(
 }
 
 #[tauri::command]
+pub fn rename_ai_category_template<R: Runtime>(
+    app: AppHandle<R>,
+    template_id: String,
+    name: String,
+) -> Result<CategoryTemplate, AppError> {
+    validate_template_id(&template_id)?;
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("模板名称不能为空".to_string().into());
+    }
+    let connection = open_database(&app)?;
+    let template = ai_repository::read_category_template(&connection, &template_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "分类模板不存在".to_string())?;
+    if template.is_global {
+        return Err("全局模板不能重命名".to_string().into());
+    }
+    if ai_repository::category_template_name_exists(&connection, name, Some(&template_id))
+        .map_err(|error| error.to_string())?
+    {
+        return Err("模板名称已存在".to_string().into());
+    }
+    if !ai_repository::rename_category_template(&connection, &template_id, name, &now_string())
+        .map_err(|error| error.to_string())?
+    {
+        return Err("分类模板不存在或当前不能重命名".to_string().into());
+    }
+    ai_repository::read_category_template(&connection, &template_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "分类模板不存在".to_string().into())
+}
+
+#[tauri::command]
+pub fn set_global_ai_category_template<R: Runtime>(
+    app: AppHandle<R>,
+    template_id: String,
+) -> Result<CategoryTemplate, AppError> {
+    validate_template_id(&template_id)?;
+    let mut connection = open_database(&app)?;
+    if !ai_repository::set_global_category_template(&mut connection, &template_id, &now_string())
+        .map_err(|error| error.to_string())?
+    {
+        return Err("分类模板不存在".to_string().into());
+    }
+    ai_repository::read_category_template(&connection, &template_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "分类模板不存在".to_string().into())
+}
+
+#[tauri::command]
 pub fn delete_ai_category_template<R: Runtime>(
     app: AppHandle<R>,
     template_id: String,
 ) -> Result<(), AppError> {
-    let deleted = ai_repository::delete_category_template(&open_database(&app)?, &template_id)
+    let mut connection = open_database(&app)?;
+    let template = ai_repository::read_category_template(&connection, &template_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "分类模板不存在".to_string())?;
+    if template.is_global {
+        return Err("全局模板不能删除".to_string().into());
+    }
+    let deleted = ai_repository::delete_category_template(&mut connection, &template_id)
         .map_err(|error| error.to_string())?;
     if !deleted {
         return Err("分类模板不存在".to_string().into());
@@ -244,10 +323,8 @@ pub fn start_analysis_batch<R: Runtime>(
         return Err("每个分析批次必须包含 1 到 100 个文件".to_string().into());
     }
     let connection = open_database(&app)?;
-    let categories = ai_repository::read_categories(&connection, &root.to_string_lossy())
-        .map_err(|error| error.to_string())?;
-    let template = ai_repository::read_root_category_template(&connection, &root.to_string_lossy())
-        .map_err(|error| error.to_string())?;
+    let (categories, template) =
+        resolve_analysis_category_source(&connection, &root, request.category_source.as_ref())?;
     if !categories.iter().any(|category| category.enabled) {
         return Err("请先配置至少一个启用的分类".to_string().into());
     }
@@ -480,6 +557,7 @@ fn validate_categories(root: &Path, categories: Vec<Category>) -> Result<Vec<Cat
         return Err("分类数量必须位于 1 到 100 之间".to_string().into());
     }
     let mut ids = HashSet::new();
+    let mut target_directories = HashSet::new();
     let mut validated = Vec::with_capacity(categories.len());
     for mut category in categories {
         if path_policy::validate_category_id(&category.id).is_err()
@@ -495,6 +573,9 @@ fn validate_categories(root: &Path, categories: Vec<Category>) -> Result<Vec<Cat
         let directory =
             path_policy::category_directory_for_category(root, &category.id, &category.name)
                 .map_err(AppError::from)?;
+        if !target_directories.insert(directory.to_string_lossy().to_lowercase()) {
+            return Err("分类目标目录不能重复或仅有大小写差异".to_string().into());
+        }
         if let Ok(metadata) = std::fs::symlink_metadata(&directory)
             && (metadata.file_type().is_symlink() || !metadata.file_type().is_dir())
         {
@@ -508,6 +589,55 @@ fn validate_categories(root: &Path, categories: Vec<Category>) -> Result<Vec<Cat
     Ok(validated)
 }
 
+fn resolve_analysis_category_source(
+    connection: &rusqlite::Connection,
+    root: &Path,
+    source: Option<&AnalysisCategorySource>,
+) -> Result<ResolvedAnalysisCategories, AppError> {
+    match source {
+        Some(AnalysisCategorySource::Template {
+            template_id,
+            expected_version,
+        }) => {
+            validate_template_id(template_id)?;
+            let template = ai_repository::read_category_template(connection, template_id)
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| "分类模板不存在".to_string())?;
+            if template.version != *expected_version {
+                return Err("分类模板版本已变化，请刷新后重新选择".to_string().into());
+            }
+            let categories = template
+                .categories
+                .iter()
+                .map(|category| Category {
+                    id: category.id.clone(),
+                    name: category.name.clone(),
+                    description: category.description.clone(),
+                    directory_path: String::new(),
+                    enabled: category.default_enabled,
+                })
+                .collect();
+            Ok((
+                validate_categories(root, categories)?,
+                Some((template.id, template.version)),
+            ))
+        }
+        Some(AnalysisCategorySource::RootCustom) => {
+            let categories = ai_repository::read_categories(connection, &root.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+            Ok((validate_categories(root, categories)?, None))
+        }
+        None => {
+            let categories = ai_repository::read_categories(connection, &root.to_string_lossy())
+                .map_err(|error| error.to_string())?;
+            let template =
+                ai_repository::read_root_category_template(connection, &root.to_string_lossy())
+                    .map_err(|error| error.to_string())?;
+            Ok((validate_categories(root, categories)?, template))
+        }
+    }
+}
+
 fn validate_template_id(id: &str) -> Result<(), AppError> {
     if id.is_empty()
         || !id
@@ -515,6 +645,18 @@ fn validate_template_id(id: &str) -> Result<(), AppError> {
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
     {
         return Err("模板 ID 不能为空，且只能包含字母、数字、连字符和下划线"
+            .to_string()
+            .into());
+    }
+    Ok(())
+}
+
+fn validate_saved_template_name(
+    existing: Option<&CategoryTemplate>,
+    requested_name: &str,
+) -> Result<(), AppError> {
+    if existing.is_some_and(|template| template.name.trim() != requested_name.trim()) {
+        return Err("修改模板内容时不能重命名，请使用重命名操作"
             .to_string()
             .into());
     }
@@ -631,3 +773,256 @@ fn now_string() -> String {
 }
 
 const DEFAULT_CATEGORY_NAME: &str = "新分类";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_root(label: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "ai-file-sorter-category-source-{label}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::canonicalize(path).unwrap()
+    }
+
+    fn template(is_global: bool) -> CategoryTemplate {
+        CategoryTemplate {
+            id: "template".into(),
+            name: "模板".into(),
+            version: 1,
+            is_global,
+            categories: vec![],
+        }
+    }
+
+    #[test]
+    fn saved_template_name_must_stay_unchanged_when_saving_categories() {
+        assert!(validate_saved_template_name(Some(&template(true)), "新名称").is_err());
+        assert!(validate_saved_template_name(Some(&template(true)), "模板").is_ok());
+        assert!(validate_saved_template_name(Some(&template(false)), "新名称").is_err());
+    }
+
+    #[test]
+    fn category_validation_rejects_colliding_target_directories() {
+        let root = temp_root("directory-collision");
+        let generated_collision = validate_categories(
+            &root,
+            vec![
+                Category {
+                    id: "category_1".into(),
+                    name: "work".into(),
+                    description: String::new(),
+                    directory_path: String::new(),
+                    enabled: true,
+                },
+                Category {
+                    id: "work".into(),
+                    name: "工作".into(),
+                    description: String::new(),
+                    directory_path: String::new(),
+                    enabled: true,
+                },
+            ],
+        );
+        assert!(generated_collision.is_err());
+
+        let case_collision = validate_categories(
+            &root,
+            vec![
+                Category {
+                    id: "work".into(),
+                    name: "工作".into(),
+                    description: String::new(),
+                    directory_path: String::new(),
+                    enabled: true,
+                },
+                Category {
+                    id: "WORK".into(),
+                    name: "工作 2".into(),
+                    description: String::new(),
+                    directory_path: String::new(),
+                    enabled: true,
+                },
+            ],
+        );
+        assert!(case_collision.is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn template_analysis_source_is_frozen_without_writing_root_categories() {
+        let root = temp_root("template");
+        let mut connection = database::open_memory_database().unwrap();
+        let template = ai_repository::upsert_category_template(
+            &mut connection,
+            "work-template",
+            "工作模板",
+            &[TemplateCategory {
+                id: "work".into(),
+                name: "工作".into(),
+                description: "工作资料".into(),
+                default_enabled: true,
+            }],
+            "1",
+        )
+        .unwrap();
+
+        let (categories, source_template) = resolve_analysis_category_source(
+            &connection,
+            &root,
+            Some(&AnalysisCategorySource::Template {
+                template_id: template.id.clone(),
+                expected_version: template.version,
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(categories.len(), 1);
+        assert_eq!(categories[0].id, "work");
+        assert_eq!(
+            categories[0].directory_path,
+            root.join("work").to_string_lossy()
+        );
+        assert_eq!(source_template, Some((template.id, template.version)));
+        assert!(
+            ai_repository::read_categories(&connection, &root.to_string_lossy())
+                .unwrap()
+                .is_empty()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn stale_template_version_is_rejected_before_analysis() {
+        let root = temp_root("stale");
+        let mut connection = database::open_memory_database().unwrap();
+        let template = ai_repository::upsert_category_template(
+            &mut connection,
+            "work-template",
+            "工作模板",
+            &[TemplateCategory {
+                id: "work".into(),
+                name: "工作".into(),
+                description: "工作资料".into(),
+                default_enabled: true,
+            }],
+            "1",
+        )
+        .unwrap();
+
+        let error = resolve_analysis_category_source(
+            &connection,
+            &root,
+            Some(&AnalysisCategorySource::Template {
+                template_id: template.id,
+                expected_version: template.version + 1,
+            }),
+        )
+        .unwrap_err();
+
+        assert!(error.message.contains("版本"));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn missing_category_source_keeps_the_existing_root_category_behavior() {
+        let root = temp_root("legacy");
+        let mut connection = database::open_memory_database().unwrap();
+        let template = ai_repository::upsert_category_template(
+            &mut connection,
+            "legacy-template",
+            "旧模板",
+            &[TemplateCategory {
+                id: "work".into(),
+                name: "工作".into(),
+                description: "工作资料".into(),
+                default_enabled: true,
+            }],
+            "1",
+        )
+        .unwrap();
+        let root_categories = vec![Category {
+            id: "work".into(),
+            name: "工作".into(),
+            description: "工作资料".into(),
+            directory_path: root.join("work").to_string_lossy().into(),
+            enabled: true,
+        }];
+        ai_repository::replace_categories(
+            &mut connection,
+            &root.to_string_lossy(),
+            &root_categories,
+        )
+        .unwrap();
+        ai_repository::bind_root_to_category_template(
+            &connection,
+            &root.to_string_lossy(),
+            &template.id,
+            template.version,
+        )
+        .unwrap();
+
+        let resolved = resolve_analysis_category_source(&connection, &root, None).unwrap();
+
+        assert_eq!(
+            resolved,
+            (root_categories, Some((template.id, template.version)))
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn explicit_root_custom_source_does_not_claim_the_legacy_template_binding() {
+        let root = temp_root("root-custom");
+        let mut connection = database::open_memory_database().unwrap();
+        let template = ai_repository::upsert_category_template(
+            &mut connection,
+            "legacy-template",
+            "旧模板",
+            &[TemplateCategory {
+                id: "work".into(),
+                name: "工作".into(),
+                description: "工作资料".into(),
+                default_enabled: true,
+            }],
+            "1",
+        )
+        .unwrap();
+        let root_categories = vec![Category {
+            id: "work".into(),
+            name: "工作".into(),
+            description: "工作资料".into(),
+            directory_path: root.join("work").to_string_lossy().into(),
+            enabled: true,
+        }];
+        ai_repository::replace_categories(
+            &mut connection,
+            &root.to_string_lossy(),
+            &root_categories,
+        )
+        .unwrap();
+        ai_repository::bind_root_to_category_template(
+            &connection,
+            &root.to_string_lossy(),
+            &template.id,
+            template.version,
+        )
+        .unwrap();
+
+        let resolved = resolve_analysis_category_source(
+            &connection,
+            &root,
+            Some(&AnalysisCategorySource::RootCustom),
+        )
+        .unwrap();
+
+        assert_eq!(resolved, (root_categories, None));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
