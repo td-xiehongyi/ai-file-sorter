@@ -1,0 +1,51 @@
+<style>
+  #final-dashboard { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #e2e8f0; }
+  #final-dashboard .window { overflow: hidden; border: 1px solid #27364e; border-radius: 18px; background: #0b1220; box-shadow: 0 24px 56px rgb(0 0 0 / .28); }
+  #final-dashboard .topbar { display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid #27364e; background:#0d1728; }
+  #final-dashboard .brand { display:flex; align-items:center; gap:10px; color:#fff; font-weight:750; letter-spacing:-.025em; }
+  #final-dashboard .mark { display:grid; width:30px; height:30px; place-items:center; border-radius:9px; background:linear-gradient(135deg,#34d399,#0891b2); color:#052e2b; font-size:11px; }
+  #final-dashboard .safe { border:1px solid #285e59; border-radius:999px; padding:5px 9px; background:#103935; color:#a7f3d0; font-size:12px; }
+  #final-dashboard .shell { display:grid; grid-template-columns:184px minmax(0,1fr); min-height:510px; }
+  #final-dashboard aside { padding:17px 11px; border-right:1px solid #27364e; background:#0d1524; }
+  #final-dashboard .nav-label { margin:10px 10px 8px; color:#64748b; font-size:10px; font-weight:800; letter-spacing:.12em; }
+  #final-dashboard .nav { display:flex; align-items:center; gap:9px; margin:4px 0; padding:10px; border-radius:8px; color:#94a3b8; font-size:13px; }
+  #final-dashboard .nav.active { background:#123c38; color:#d1fae5; font-weight:700; }
+  #final-dashboard .dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
+  #final-dashboard main { padding:28px; background:radial-gradient(circle at 90% 0%,rgb(16 185 129 / .1),transparent 27%),#0b1220; }
+  #final-dashboard .heading { display:flex; align-items:start; justify-content:space-between; gap:16px; }
+  #final-dashboard h2 { margin:0; color:#fff; font-size:22px; letter-spacing:-.04em; }
+  #final-dashboard .lede { margin:6px 0 0; color:#94a3b8; font-size:13px; }
+  #final-dashboard .primary { border:0; border-radius:8px; padding:10px 13px; background:#10b981; color:#052e2b; font-size:13px; font-weight:800; white-space:nowrap; }
+  #final-dashboard .directory { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:22px; padding:15px; border:1px solid #2b4650; border-radius:12px; background:linear-gradient(100deg,#0f2530,#10252b); }
+  #final-dashboard .eyebrow { color:#6ee7b7; font-size:10px; font-weight:800; letter-spacing:.1em; }
+  #final-dashboard .path { margin-top:5px; color:#f1f5f9; font-size:13px; font-weight:650; }
+  #final-dashboard .section { display:flex; align-items:center; justify-content:space-between; margin-top:28px; }
+  #final-dashboard h3 { margin:0; color:#f8fafc; font-size:15px; }
+  #final-dashboard .time { color:#94a3b8; font-size:12px; }
+  #final-dashboard .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:12px; }
+  #final-dashboard .stat { padding:14px; border:1px solid #27364e; border-radius:10px; background:#101a2b; }
+  #final-dashboard .stat label { color:#94a3b8; font-size:12px; }
+  #final-dashboard .stat strong { display:block; margin-top:7px; color:#fff; font-size:22px; letter-spacing:-.04em; }
+  #final-dashboard .stat strong.good { color:#6ee7b7; }
+  #final-dashboard .notice { display:flex; gap:10px; align-items:flex-start; margin-top:12px; padding:13px 14px; border:1px solid #27364e; border-radius:10px; background:#0e1728; color:#cbd5e1; font-size:12px; line-height:1.5; }
+  #final-dashboard .check { display:grid; flex:0 0 auto; width:18px; height:18px; place-items:center; border-radius:50%; background:#14532d; color:#bbf7d0; }
+  #final-dashboard .actions { display:flex; gap:8px; margin-top:18px; }
+  #final-dashboard .secondary { border:1px solid #3a495d; border-radius:7px; padding:8px 10px; color:#cbd5e1; font-size:12px; }
+  #final-dashboard .link { padding:8px 5px; color:#a7f3d0; font-size:12px; font-weight:700; }
+  @media (max-width:640px) { #final-dashboard .shell { grid-template-columns:1fr; } #final-dashboard aside { display:none; } #final-dashboard main { padding:18px; } #final-dashboard .stats { grid-template-columns:repeat(2,1fr); } #final-dashboard .heading,.directory { align-items:flex-start; flex-direction:column; } }
+</style>
+
+<div id="final-dashboard">
+  <div class="window" role="img" aria-label="已移除重复目录操作和 AI 占位入口的阶段二扫描概览">
+    <header class="topbar"><div class="brand"><span class="mark">AF</span>AI File Organizer</div><span class="safe">● 本地优先 · 只读扫描</span></header>
+    <div class="shell">
+      <aside><div class="nav-label">工作区</div><div class="nav active"><span class="dot"></span>概览</div><div class="nav"><span class="dot"></span>已授权目录</div><div class="nav"><span class="dot"></span>扫描记录</div></aside>
+      <main>
+        <div class="heading"><div><h2>扫描概览</h2><p class="lede">查看当前授权目录与最近一次扫描的真实结果。</p></div></div>
+        <section class="directory"><div><div class="eyebrow">当前授权目录</div><div class="path">C:\\Users\\xie\\Downloads</div></div><button class="primary" type="button">更换目录</button></section>
+        <section><div class="section"><h3>最后一次扫描结果</h3><span class="time">今天 14:32 完成</span></div><div class="stats"><div class="stat"><label>已索引文件</label><strong>1,284</strong></div><div class="stat"><label>已扫描目录</label><strong>96</strong></div><div class="stat"><label>扫描耗时</label><strong>8.4 秒</strong></div><div class="stat"><label>处理错误</label><strong class="good">0</strong></div></div><div class="notice"><span class="check">✓</span><span><strong>索引已更新。</strong> 此次扫描仅读取名称、路径、类型、大小与修改时间；未移动、重命名或上传文件内容。</span></div></section>
+        <div class="actions"><span class="secondary">重新扫描</span><span class="link">重建索引</span></div>
+      </main>
+    </div>
+  </div>
+</div>

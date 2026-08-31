@@ -1,0 +1,130 @@
+<style>
+  #phase-gallery { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #e2e8f0; }
+  #phase-gallery .switcher { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; }
+  #phase-gallery .switcher button { border:1px solid #334155; border-radius:8px; padding:8px 11px; background:#0f172a; color:#cbd5e1; font:inherit; font-size:13px; cursor:pointer; }
+  #phase-gallery .switcher button[aria-pressed="true"] { border-color:#34d399; background:#123c38; color:#d1fae5; }
+  #phase-gallery .desktop { overflow:hidden; width:100%; aspect-ratio:3 / 2; min-height:380px; border:1px solid #26354b; border-radius:18px; background:#0b1220; box-shadow:0 24px 56px rgb(0 0 0 / .28); }
+  #phase-gallery .topbar { display:flex; align-items:center; justify-content:space-between; height:7.75%; padding:0 2.5%; border-bottom:1px solid #26354b; background:#0d1728; }
+  #phase-gallery .brand { display:flex; align-items:center; gap:9px; color:#fff; font-weight:750; font-size:clamp(10px,1.5vw,17px); letter-spacing:-.025em; }
+  #phase-gallery .mark { display:grid; width:clamp(20px,3vw,32px); aspect-ratio:1; place-items:center; border-radius:28%; background:linear-gradient(135deg,#34d399,#0891b2); color:#052e2b; font-size:clamp(7px,1vw,11px); }
+  #phase-gallery .safe { border:1px solid #285e59; border-radius:999px; padding:.55em .8em; background:#103935; color:#a7f3d0; font-size:clamp(7px,1vw,11px); }
+  #phase-gallery .shell { display:grid; grid-template-columns:16% minmax(0,1fr); height:92.25%; }
+  #phase-gallery aside { padding:3.2% 6%; border-right:1px solid #26354b; background:#0d1524; }
+  #phase-gallery .nav-label { margin:0 0 10%; color:#64748b; font-size:clamp(6px,.8vw,9px); font-weight:800; letter-spacing:.12em; }
+  #phase-gallery .nav { display:flex; gap:8%; align-items:center; margin:3% 0; padding:8% 8%; border-radius:8px; color:#94a3b8; font-size:clamp(7px,1.1vw,12px); }
+  #phase-gallery .nav.active { background:#123c38; color:#d1fae5; font-weight:700; }
+  #phase-gallery .nav.future { color:#536274; }
+  #phase-gallery .dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
+  #phase-gallery main { min-width:0; padding:4.4%; background:radial-gradient(circle at 90% 0%,rgb(16 185 129 / .1),transparent 25%),#0b1220; }
+  #phase-gallery .heading { display:flex; align-items:start; justify-content:space-between; gap:16px; }
+  #phase-gallery h2 { margin:0; color:#fff; font-size:clamp(15px,2.2vw,26px); letter-spacing:-.045em; }
+  #phase-gallery .lede { margin:.55em 0 0; color:#94a3b8; font-size:clamp(7px,1vw,12px); }
+  #phase-gallery .button { border:0; border-radius:8px; padding:.75em 1em; background:#10b981; color:#052e2b; font-size:clamp(7px,1vw,12px); font-weight:800; white-space:nowrap; }
+  #phase-gallery .secondary { border:1px solid #3a495d; border-radius:7px; padding:.65em .85em; color:#cbd5e1; font-size:clamp(7px,1vw,11px); white-space:nowrap; }
+  #phase-gallery .directory { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:3.1%; padding:2.1%; border:1px solid #2b4650; border-radius:12px; background:linear-gradient(100deg,#0f2530,#10252b); }
+  #phase-gallery .eyebrow { color:#6ee7b7; font-size:clamp(6px,.8vw,9px); font-weight:800; letter-spacing:.1em; }
+  #phase-gallery .path { margin-top:.45em; color:#f1f5f9; font-size:clamp(8px,1.1vw,13px); font-weight:650; }
+  #phase-gallery .section { display:flex; align-items:center; justify-content:space-between; margin-top:4%; }
+  #phase-gallery h3 { margin:0; color:#f8fafc; font-size:clamp(9px,1.25vw,15px); }
+  #phase-gallery .time { color:#94a3b8; font-size:clamp(7px,.9vw,11px); }
+  #phase-gallery .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1.5%; margin-top:2%; }
+  #phase-gallery .stat { padding:10%; border:1px solid #27364e; border-radius:10px; background:#101a2b; }
+  #phase-gallery .stat label { color:#94a3b8; font-size:clamp(6px,.85vw,10px); }
+  #phase-gallery .stat strong { display:block; margin-top:.4em; color:#fff; font-size:clamp(13px,2vw,23px); letter-spacing:-.04em; }
+  #phase-gallery .good { color:#6ee7b7 !important; }
+  #phase-gallery .notice { display:flex; gap:9px; align-items:flex-start; margin-top:2%; padding:2%; border:1px solid #27364e; border-radius:10px; background:#0e1728; color:#cbd5e1; font-size:clamp(7px,.9vw,11px); line-height:1.45; }
+  #phase-gallery .check { display:grid; flex:0 0 auto; width:1.5em; aspect-ratio:1; place-items:center; border-radius:50%; background:#14532d; color:#bbf7d0; }
+  #phase-gallery .actions { display:flex; gap:8px; margin-top:3%; }
+  #phase-gallery .search { display:flex; align-items:center; gap:2%; margin-top:3%; }
+  #phase-gallery .searchbox { flex:1; padding:1.5% 2%; border:1px solid #3a495d; border-radius:8px; background:#0e1728; color:#94a3b8; font-size:clamp(7px,1vw,12px); }
+  #phase-gallery table { width:100%; margin-top:2.4%; border-collapse:collapse; color:#cbd5e1; font-size:clamp(7px,.92vw,11px); }
+  #phase-gallery th { padding:1.35% 1%; border-bottom:1px solid #334155; color:#64748b; text-align:left; font-size:.9em; font-weight:700; }
+  #phase-gallery td { padding:1.5% 1%; border-bottom:1px solid #1f2b3e; }
+  #phase-gallery .file { color:#f1f5f9; font-weight:650; }
+  #phase-gallery .tag { border-radius:999px; padding:.25em .6em; background:#172554; color:#bfdbfe; font-size:.9em; }
+  #phase-gallery .split { display:grid; grid-template-columns:1.18fr .82fr; gap:2.4%; margin-top:3%; }
+  #phase-gallery .panel { padding:4%; border:1px solid #27364e; border-radius:12px; background:#101a2b; }
+  #phase-gallery .plan-row { display:grid; grid-template-columns:1fr auto 1fr; gap:7px; align-items:center; margin-top:5%; padding-bottom:4%; border-bottom:1px solid #27364e; font-size:clamp(7px,.9vw,11px); }
+  #phase-gallery .arrow { color:#6ee7b7; text-align:center; }
+  #phase-gallery .warning { margin-top:5%; padding:3%; border-radius:8px; background:#3b2c13; color:#fde68a; font-size:clamp(7px,.9vw,11px); }
+  #phase-gallery .result { margin-top:5%; padding:3%; border-radius:8px; background:#103935; color:#d1fae5; font-size:clamp(7px,.9vw,11px); }
+  #phase-gallery .selected { display:flex; align-items:center; justify-content:space-between; margin-top:3%; padding:2%; border:1px solid #285e59; border-radius:10px; background:#103935; font-size:clamp(7px,.9vw,11px); }
+  #phase-gallery .suggestion { margin-top:2%; padding:3%; border:1px solid #27364e; border-radius:10px; background:#101a2b; }
+  #phase-gallery .suggestion strong { color:#fff; font-size:clamp(8px,1.05vw,13px); }
+  #phase-gallery .meta { display:flex; gap:7px; margin-top:1.5%; color:#94a3b8; font-size:clamp(6px,.8vw,10px); }
+  #phase-gallery .consent { margin-top:3%; padding:3%; border:1px solid #4c3b1c; border-radius:10px; background:linear-gradient(105deg,#2b2112,#171c29); }
+  #phase-gallery .consent h3 { color:#fde68a; }
+  #phase-gallery .consent p { margin:1.2% 0 0; color:#cbd5e1; font-size:clamp(7px,.9vw,11px); line-height:1.45; }
+  #phase-gallery .hidden { display:none; }
+  @media(max-width:560px){ #phase-gallery .desktop{ aspect-ratio:auto; min-height:430px; } #phase-gallery .shell{grid-template-columns:1fr;} #phase-gallery aside{display:none;} #phase-gallery .stats{grid-template-columns:repeat(2,1fr);} #phase-gallery .split{grid-template-columns:1fr;} #phase-gallery .topbar{height:46px;} }
+</style>
+
+<div id="phase-gallery">
+  <div class="switcher" aria-label="预览阶段切换">
+    <button type="button" aria-pressed="true" data-stage="stage2">阶段二 · 扫描与索引</button>
+    <button type="button" aria-pressed="false" data-stage="stage3">阶段三 · 文件浏览</button>
+    <button type="button" aria-pressed="false" data-stage="stage4">阶段四 · 安全操作</button>
+    <button type="button" aria-pressed="false" data-stage="stage5">阶段五 · AI 建议</button>
+  </div>
+  <div class="desktop">
+    <header class="topbar"><div class="brand"><span class="mark">AF</span>AI File Organizer</div><span class="safe">● 本地优先 · 只读扫描</span></header>
+    <div class="shell">
+      <aside>
+        <div class="nav-label">工作区</div>
+        <div class="nav active" data-nav="overview"><span class="dot"></span>概览</div>
+        <div class="nav" data-nav="directories"><span class="dot"></span>已授权目录</div>
+        <div class="nav future" data-nav="files"><span class="dot"></span>文件浏览</div>
+        <div class="nav future" data-nav="operations"><span class="dot"></span>操作记录</div>
+        <div class="nav future" data-nav="ai"><span class="dot"></span>AI 建议</div>
+        <div class="nav future" data-nav="settings"><span class="dot"></span>设置</div>
+      </aside>
+      <main>
+        <section data-screen="stage2">
+          <div class="heading"><div><h2>扫描概览</h2><p class="lede">查看当前授权目录与最近一次扫描的真实结果。</p></div></div>
+          <div class="directory"><div><div class="eyebrow">当前授权目录</div><div class="path">C:\\Users\\xie\\Downloads</div></div><button class="button" type="button">更换目录</button></div>
+          <div class="section"><h3>最后一次扫描结果</h3><span class="time">今天 14:32 完成</span></div>
+          <div class="stats"><div class="stat"><label>已索引文件</label><strong>1,284</strong></div><div class="stat"><label>已扫描目录</label><strong>96</strong></div><div class="stat"><label>扫描耗时</label><strong>8.4 秒</strong></div><div class="stat"><label>处理错误</label><strong class="good">0</strong></div></div>
+          <div class="notice"><span class="check">✓</span><span><strong>索引已更新。</strong> 仅读取名称、路径、类型、大小与修改时间；不会移动、重命名或上传文件内容。</span></div><div class="actions"><span class="secondary">重新扫描</span><span class="secondary">重建索引</span></div>
+        </section>
+        <section data-screen="stage3" class="hidden">
+          <div class="heading"><div><h2>文件浏览</h2><p class="lede">在已授权目录的本地索引中查找文件。</p></div><button class="button" type="button">重新扫描</button></div>
+          <div class="search"><div class="searchbox">⌕　搜索文件名或路径</div><span class="secondary">类型：全部</span><span class="secondary">按修改时间</span></div>
+          <div class="section"><h3>搜索结果</h3><span class="time">共 1,284 个已索引文件</span></div>
+          <table><thead><tr><th>名称</th><th>路径</th><th>类型</th><th>大小</th><th>修改时间</th></tr></thead><tbody><tr><td class="file">2026 年 8 月账单.pdf</td><td>Downloads / Finance</td><td><span class="tag">PDF</span></td><td>1.8 MB</td><td>今天 10:23</td></tr><tr><td class="file">项目需求说明.md</td><td>Downloads / Work</td><td><span class="tag">MD</span></td><td>24 KB</td><td>昨天</td></tr><tr><td class="file">会议记录.docx</td><td>Downloads / Work</td><td><span class="tag">DOCX</span></td><td>94 KB</td><td>2026-08-15</td></tr></tbody></table>
+          <div class="notice"><span class="check">i</span><span>搜索仅查询本地索引。文件改动会在后续监听或重新扫描时同步。</span></div>
+        </section>
+        <section data-screen="stage4" class="hidden">
+          <div class="heading"><div><h2>操作预览</h2><p class="lede">执行前核对每项变化；尚未确认时不会修改磁盘。</p></div><span class="secondary">计划有效期：09:42</span></div>
+          <div class="split"><div class="panel"><h3>待确认计划 · 2 项</h3><div class="plan-row"><span>Downloads / 账单.pdf</span><span class="arrow">→</span><span>Downloads / Finance / 2026-08-账单.pdf</span></div><div class="plan-row"><span>Downloads / meeting.docx</span><span class="arrow">→</span><span>Downloads / Work / 会议记录.docx</span></div><div class="warning">! 执行前会再次核对源文件身份和目标冲突；如文件变化或目标已存在，本次操作将被拒绝。</div></div><div class="panel"><h3>确认后</h3><p class="lede">逐项执行并记录真实结果。失败时停止未开始的项目；已成功项目不会自动回滚。</p><div class="result">✓ 预计可安全执行</div><div class="actions"><button class="button" type="button">确认并执行</button><span class="secondary">取消计划</span></div></div></div>
+          <div class="section"><h3>操作历史</h3><span class="time">可撤销资格实时计算</span></div><div class="notice"><span class="check">✓</span><span>昨天的“合同.pdf”移动记录可撤销；恢复位置当前未被占用。</span></div>
+        </section>
+        <section data-screen="stage5" class="hidden">
+          <div class="heading"><div><h2>AI 建议</h2><p class="lede">仅分析你明确选中的文件；AI 只生成建议，不能直接执行操作。</p></div><span class="secondary">Provider 设置</span></div>
+          <div class="selected"><span>已选 2 个支持分析的文件 · TXT、PDF、DOCX</span><button class="button" type="button">开始分析</button></div>
+          <div class="section"><h3>建议审查</h3><span class="time">请逐项接受、修改或拒绝</span></div>
+          <div class="suggestion"><strong>2026 年 8 月账单.pdf</strong><div class="meta"><span>建议文件名：2026-08-水电账单.pdf</span><span>分类：财务</span><span>置信度：92%</span></div><div class="actions"><span class="secondary">接受并预览</span><span class="secondary">修改</span><span class="secondary">拒绝</span></div></div>
+          <div class="consent"><h3>远程分析前的明确同意</h3><p>将发送：2 个指定文件的临时正文、Provider/模型与预计文本量。原始正文不会写入数据库、历史或日志。确认一次后才创建本批次的短期同意凭据。</p><div class="actions"><button class="button" type="button">确认并发送本批数据</button><span class="secondary">取消</span></div></div>
+        </section>
+      </main>
+    </div>
+  </div>
+</div>
+<script>
+  (() => {
+    const root = document.getElementById('phase-gallery');
+    const buttons = Array.from(root.querySelectorAll('[data-stage]'));
+    const screens = Array.from(root.querySelectorAll('[data-screen]'));
+    const navs = Array.from(root.querySelectorAll('[data-nav]'));
+    const navByStage = { stage2: 'overview', stage3: 'files', stage4: 'operations', stage5: 'ai' };
+    function show(stage) {
+      buttons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.stage === stage)));
+      screens.forEach((screen) => screen.classList.toggle('hidden', screen.dataset.screen !== stage));
+      navs.forEach((nav) => {
+        const active = nav.dataset.nav === navByStage[stage];
+        nav.classList.toggle('active', active);
+        nav.classList.toggle('future', !active && (nav.dataset.nav === 'files' || nav.dataset.nav === 'operations' || nav.dataset.nav === 'ai' || nav.dataset.nav === 'settings'));
+      });
+    }
+    buttons.forEach((button) => button.addEventListener('click', () => show(button.dataset.stage)));
+  })();
+</script>

@@ -1,0 +1,31 @@
+{"type":"server-started","port":58323,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:58323/?key=5a4e9da385e17d9e09e91c3ca738c347c7f65a822461df038044ddcd5050de00","screen_dir":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content","state_dir":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\state","idle_timeout_ms":14400000}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\dashboard-layout.html"}
+{"source":"user-event","type":"click","text":"AF本地优先\n        \n          概览已授权目录扫描记录文件浏览（后续）\n          扫描概览选择目录尚未选择目录选择一个文件夹，建立本地文件元数据索引。目录0文件0错误0\n        \n      \n      B · 侧边栏工作台功能位置稳定，为阶段三的文件浏览与后续操作历史预留清晰导航。","choice":"sidebar","id":null,"timestamp":1787036862195}
+{"source":"user-event","type":"click","text":"AF本地优先\n        \n          概览已授权目录扫描记录文件浏览（后续）\n          扫描概览选择目录尚未选择目录选择一个文件夹，建立本地文件元数据索引。目录0文件0错误0\n        \n      \n      B · 侧边栏工作台功能位置稳定，为阶段三的文件浏览与后续操作历史预留清晰导航。","choice":"sidebar","id":null,"timestamp":1787036863818}
+{"source":"user-event","type":"click","text":"AF本地优先\n        \n          概览已授权目录扫描记录文件浏览（后续）\n          扫描概览选择目录尚未选择目录选择一个文件夹，建立本地文件元数据索引。目录0文件0错误0\n        \n      \n      B · 侧边栏工作台功能位置稳定，为阶段三的文件浏览与后续操作历史预留清晰导航。","choice":"sidebar","id":null,"timestamp":1787036865459}
+{"source":"user-event","type":"click","text":"AF本地优先\n        \n          概览已授权目录扫描记录文件浏览（后续）\n          扫描概览选择目录尚未选择目录选择一个文件夹，建立本地文件元数据索引。目录0文件0错误0\n        \n      \n      B · 侧边栏工作台功能位置稳定，为阶段三的文件浏览与后续操作历史预留清晰导航。","choice":"sidebar","id":null,"timestamp":1787036865842}
+{"source":"user-event","type":"click","text":"AF本地优先\n        \n          概览已授权目录扫描记录文件浏览（后续）\n          扫描概览选择目录尚未选择目录选择一个文件夹，建立本地文件元数据索引。目录0文件0错误0\n        \n      \n      B · 侧边栏工作台功能位置稳定，为阶段三的文件浏览与后续操作历史预留清晰导航。","choice":"sidebar","id":null,"timestamp":1787036866186}
+{"source":"user-event","type":"click","text":"AF本地优先\n        \n          概览已授权目录扫描记录文件浏览（后续）\n          扫描概览选择目录尚未选择目录选择一个文件夹，建立本地文件元数据索引。目录0文件0错误0\n        \n      \n      B · 侧边栏工作台功能位置稳定，为阶段三的文件浏览与后续操作历史预留清晰导航。","choice":"sidebar","id":null,"timestamp":1787036866914}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\sidebar-dashboard-refined.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\sidebar-dashboard-finalized.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\phase-workspace-gallery.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\phase-workspace-adjusted-flow.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\button-scale-adjustment.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\user-journey-walkthrough.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\ai-suggestion-visual-review.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\dashboard-layout.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\ai-suggestion-target-path.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\ai-suggestion-target-path-clean.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\final-user-flow-preview.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\sidebar-dashboard-refined.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\phase-workspace-gallery.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\sidebar-dashboard-finalized.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\first-step-copy-refined.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\user-flow-current.html"}
+{"type":"screen-added","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\user-flow-current-fixed.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\final-user-flow-preview.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\phase-workspace-adjusted-flow.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\button-scale-adjustment.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\final-user-flow-preview.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\final-user-flow-preview.html"}
+{"type":"screen-updated","file":"C:\\Users\\xie\\Desktop\\MyApp\\.superpowers\\brainstorm\\win-1787036737\\content\\user-journey-walkthrough.html"}

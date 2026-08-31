@@ -1,0 +1,71 @@
+<style>
+  #dashboard-layout { color: #e5e7eb; }
+  #dashboard-layout .layout-grid { display: grid; gap: 18px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #dashboard-layout .layout-choice { cursor: pointer; border: 1px solid #334155; border-radius: 14px; overflow: hidden; background: #0f172a; }
+  #dashboard-layout .layout-choice:hover, #dashboard-layout .layout-choice.selected { border-color: #34d399; box-shadow: 0 0 0 2px rgb(52 211 153 / .18); }
+  #dashboard-layout .preview { min-height: 258px; padding: 12px; background: #020617; font-size: 10px; color: #cbd5e1; }
+  #dashboard-layout .chrome { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b; padding-bottom: 9px; }
+  #dashboard-layout .brand { color: #a7f3d0; font-weight: 700; }
+  #dashboard-layout .pill { border-radius: 999px; background: #1e293b; padding: 3px 7px; color: #94a3b8; }
+  #dashboard-layout .primary { border-radius: 6px; background: #10b981; padding: 7px 9px; color: #022c22; font-weight: 700; }
+  #dashboard-layout .muted-button { border-radius: 6px; border: 1px solid #334155; padding: 7px 9px; color: #cbd5e1; }
+  #dashboard-layout .card { margin-top: 12px; border: 1px solid #1e293b; border-radius: 9px; padding: 12px; background: #0f172a; }
+  #dashboard-layout .title { color: #f8fafc; font-size: 13px; font-weight: 700; }
+  #dashboard-layout .muted { margin-top: 5px; color: #94a3b8; line-height: 1.45; }
+  #dashboard-layout .row { display: flex; gap: 7px; align-items: center; }
+  #dashboard-layout .space { justify-content: space-between; }
+  #dashboard-layout .sidebar { float: left; width: 30%; min-height: 220px; margin-right: 10px; border-right: 1px solid #1e293b; color: #94a3b8; }
+  #dashboard-layout .sidebar div { margin: 10px 0; }
+  #dashboard-layout .sidebar .active { color: #a7f3d0; font-weight: 700; }
+  #dashboard-layout .content { overflow: hidden; }
+  #dashboard-layout .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 12px; }
+  #dashboard-layout .stat { border-radius: 7px; padding: 8px; background: #172033; color: #94a3b8; }
+  #dashboard-layout .stat strong { display: block; margin-top: 4px; color: #f8fafc; font-size: 14px; }
+  #dashboard-layout .choice-copy { padding: 12px 14px 14px; }
+  #dashboard-layout .choice-copy h3 { margin: 0; color: #f8fafc; font-size: 15px; }
+  #dashboard-layout .choice-copy p { margin: 6px 0 0; color: #94a3b8; font-size: 13px; line-height: 1.5; }
+  @media (max-width: 760px) { #dashboard-layout .layout-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div id="dashboard-layout">
+  <h2>选择阶段二的主工作台布局</h2>
+  <p class="subtitle">三种方案都保留“选择目录、开始扫描、扫描状态、目录摘要、重新扫描、重建索引”这些真实功能入口。点击你更希望继续深化的布局。</p>
+
+  <div class="layout-grid">
+    <div class="layout-choice" data-choice="focused" onclick="toggleSelect(this)" role="button" aria-label="选择聚焦式扫描主页">
+      <div class="preview">
+        <div class="chrome"><span class="brand">AF · AI File Organizer</span><span class="pill">本地优先</span></div>
+        <div class="card" style="margin-top:34px; padding:22px; text-align:center;">
+          <div class="title">从一个文件夹开始</div>
+          <div class="muted">应用只读取元数据，不会移动、重命名或发送文件内容。</div>
+          <div class="primary" style="display:inline-block; margin-top:16px;">选择要扫描的文件夹</div>
+        </div>
+        <div class="card"><div class="row space"><span>尚未授权目录</span><span class="pill">等待选择</span></div></div>
+      </div>
+      <div class="choice-copy"><h3>A · 聚焦式扫描主页</h3><p>首次使用最直观；完成扫描后，同一主区域切换为目录摘要。</p></div>
+    </div>
+
+    <div class="layout-choice" data-choice="sidebar" onclick="toggleSelect(this)" role="button" aria-label="选择侧边栏工作台">
+      <div class="preview">
+        <div class="chrome"><span class="brand">AF</span><span class="pill">本地优先</span></div>
+        <div style="margin-top:10px;">
+          <div class="sidebar"><div class="active">概览</div><div>已授权目录</div><div>扫描记录</div><div style="color:#475569;">文件浏览（后续）</div></div>
+          <div class="content"><div class="row space"><span class="title">扫描概览</span><span class="primary">选择目录</span></div><div class="card"><div class="title">尚未选择目录</div><div class="muted">选择一个文件夹，建立本地文件元数据索引。</div></div><div class="stat-row"><div class="stat">目录<strong>0</strong></div><div class="stat">文件<strong>0</strong></div><div class="stat">错误<strong>0</strong></div></div></div>
+        </div>
+      </div>
+      <div class="choice-copy"><h3>B · 侧边栏工作台</h3><p>功能位置稳定，为阶段三的文件浏览与后续操作历史预留清晰导航。</p></div>
+    </div>
+
+    <div class="layout-choice" data-choice="task" onclick="toggleSelect(this)" role="button" aria-label="选择任务导向工作台">
+      <div class="preview">
+        <div class="chrome"><span class="brand">AI File Organizer</span><span class="primary">选择目录</span></div>
+        <div class="row space" style="margin-top:16px;"><span class="title">当前目录</span><span class="pill">未设置</span></div>
+        <div class="card"><div class="muted">尚未授权任何目录。选择文件夹后即可开始只读扫描。</div><div class="primary" style="display:inline-block; margin-top:12px;">选择文件夹并扫描</div></div>
+        <div class="row" style="margin-top:16px;"><span class="title">最近扫描</span></div>
+        <div class="card"><div class="muted">没有扫描记录</div></div>
+        <div class="row" style="margin-top:12px;"><span class="muted-button">重新扫描</span><span class="muted-button">重建索引</span></div>
+      </div>
+      <div class="choice-copy"><h3>C · 任务导向工作台</h3><p>所有关键操作集中在单页，强调“下一步该做什么”，适合单目录模式。</p></div>
+    </div>
+  </div>
+</div>
