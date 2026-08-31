@@ -52,7 +52,7 @@ export function TemplateSettingsView({
   onSaveCategories,
 }: Props) {
   const globalTemplates = templates.filter((template) => template.is_global);
-  const commonTemplates = templates.filter((template) => !template.is_global);
+  const commonTemplates = templates;
   const renderTemplate = (template: AiCategoryTemplate) => <article key={template.id} className={`template-list-item${selectedTemplateId === template.id ? " is-selected" : ""}`}>
     <button type="button" onClick={() => onSelectTemplate(template.id)} className="template-list-select"><span>{template.name}</span><small>v{template.version} · {template.is_global ? "当前全局" : "常用模板"}</small></button>
     <div className="template-list-actions"><button type="button" onClick={() => onSelectTemplate(template.id)} className="template-link">查看/修改</button><button type="button" onClick={() => onRenameTemplate(template)} className="template-link">重命名</button>{!template.is_global && <><button type="button" onClick={() => onMakeGlobal(template)} className="template-link">设为全局</button><button type="button" onClick={() => onRemoveTemplate(template)} className="template-link danger">删除模板</button></>}</div>

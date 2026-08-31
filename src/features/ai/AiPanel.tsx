@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cancelAnalysisBatch,
@@ -88,6 +88,11 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
   const [setupLoading, setSetupLoading] = useState(true);
   const [settingsReturnView, setSettingsReturnView] = useState<"files" | "ai">("ai");
   const [settingsOpenedFromAction, setSettingsOpenedFromAction] = useState(false);
+  const templateRefreshGeneration = useRef(0);
+  const selectedTemplateIdRef = useRef("");
+  useEffect(() => {
+    selectedTemplateIdRef.current = selectedTemplateId;
+  }, [selectedTemplateId]);
   const supportedFiles = useMemo(
     () => selectedEntries.filter(isSupportedEntry),
     [selectedEntries],
@@ -116,19 +121,21 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
             : null;
 
   useEffect(() => {
+    const generation = ++templateRefreshGeneration.current;
     let cancelled = false;
     setProvider(null);
     setError(null);
     setSetupLoading(true);
     void Promise.all([getAiProviderStatus(model), getAiCategories(rootPath), getAiCategoryTemplates()])
       .then(([status, storedCategories, storedTemplates]) => {
-        if (!cancelled) {
+        if (!cancelled && generation === templateRefreshGeneration.current) {
           setProvider(status);
           setCategories(storedCategories);
           setSavedCategoryIds(new Set(storedCategories.map((category) => category.id)));
           setTemplates(storedTemplates);
           const globalTemplate = storedTemplates.find((template) => template.is_global);
           const preferred = globalTemplate ?? storedTemplates[0];
+          selectedTemplateIdRef.current = preferred?.id ?? "";
           setSelectedTemplateId(preferred?.id ?? "");
           setTemplateDraft(preferred ?? null);
           setTemplateDirty(false);
@@ -138,10 +145,12 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
         }
       })
       .catch((cause) => {
-        if (!cancelled) setError(messageOf(cause, "无法读取 AI 配置。"));
+        if (!cancelled && generation === templateRefreshGeneration.current) {
+          setError(messageOf(cause, "无法读取 AI 配置。"));
+        }
       })
       .finally(() => {
-        if (!cancelled) setSetupLoading(false);
+        if (!cancelled && generation === templateRefreshGeneration.current) setSetupLoading(false);
       });
     return () => { cancelled = true; };
   }, [rootPath, model]);
@@ -314,9 +323,27 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
 
   function selectTemplate(templateId: string) {
     if (templateDirty && !window.confirm("当前模板有未保存的修改，确定放弃并切换吗？")) return;
+    selectedTemplateIdRef.current = templateId;
     setSelectedTemplateId(templateId);
     setTemplateDraft(templates.find((template) => template.id === templateId) ?? null);
     setTemplateDirty(false);
+  }
+
+  async function refreshTemplateLibrary(preferredId?: string) {
+    const generation = ++templateRefreshGeneration.current;
+    const refreshed = await getAiCategoryTemplates();
+    if (generation !== templateRefreshGeneration.current) return null;
+    setTemplates(refreshed);
+    const preferred = (preferredId ? refreshed.find((template) => template.id === preferredId) : undefined)
+      ?? refreshed.find((template) => template.id === selectedTemplateIdRef.current)
+      ?? refreshed.find((template) => template.is_global)
+      ?? refreshed[0]
+      ?? null;
+    selectedTemplateIdRef.current = preferred?.id ?? "";
+    setSelectedTemplateId(preferred?.id ?? "");
+    setTemplateDraft(preferred);
+    setTemplateDirty(false);
+    return preferred;
   }
 
   function newTemplate() {
@@ -337,6 +364,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
       categories: seededCategories,
     };
     setTemplateDraft(draft);
+    selectedTemplateIdRef.current = draft.id;
     setSelectedTemplateId(draft.id);
     setTemplateDirty(true);
   }
@@ -377,10 +405,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
         name: templateDraft.name,
         categories: templateDraft.categories,
       });
-      setTemplates((current) => [...current.filter((template) => template.id !== saved.id), saved]);
-      setSelectedTemplateId(saved.id);
-      setTemplateDraft(saved);
-      setTemplateDirty(false);
+      await refreshTemplateLibrary(saved.id);
       setAnalysisSource((current) => current?.kind === "template" && current.template_id === saved.id
         ? { ...current, expected_version: saved.version }
         : current);
@@ -396,9 +421,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     setError(null);
     try {
       const renamed = await renameAiCategoryTemplate(target.id, name);
-      setTemplates((current) => current.map((template) => template.id === renamed.id ? renamed : template));
-      setTemplateDraft(renamed);
-      setTemplateDirty(false);
+      await refreshTemplateLibrary(renamed.id);
     } catch (cause) {
       setError(messageOf(cause, "无法重命名分类模板。"));
     }
@@ -410,11 +433,10 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     setError(null);
     try {
       const globalTemplate = await setGlobalAiCategoryTemplate(target.id);
-      setTemplates((current) => current.map((template) => template.id === globalTemplate.id ? globalTemplate : { ...template, is_global: false }));
-      setTemplateDraft(globalTemplate);
-      setSelectedTemplateId(globalTemplate.id);
-      setTemplateDirty(false);
-      setAnalysisSource({ kind: "template", template_id: globalTemplate.id, expected_version: globalTemplate.version });
+      const refreshedGlobal = await refreshTemplateLibrary(globalTemplate.id);
+      if (refreshedGlobal?.id === globalTemplate.id && refreshedGlobal.is_global) {
+        setAnalysisSource({ kind: "template", template_id: globalTemplate.id, expected_version: globalTemplate.version });
+      }
     } catch (cause) {
       setError(messageOf(cause, "无法设置全局分类模板。"));
     }
@@ -425,11 +447,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     setError(null);
     try {
       await deleteAiCategoryTemplate(target.id);
-      const remaining = templates.filter((template) => template.id !== target.id);
-      setTemplates(remaining);
-      setSelectedTemplateId(remaining[0]?.id ?? "");
-      setTemplateDraft(remaining[0] ?? null);
-      setTemplateDirty(false);
+      await refreshTemplateLibrary();
       setAnalysisSource((current) => current?.kind === "template" && current.template_id === target.id ? null : current);
     } catch (cause) {
       setError(messageOf(cause, "无法删除分类模板。"));

@@ -340,6 +340,42 @@ it("allows deleting a non-global template", async () => {
   confirm.mockRestore();
 });
 
+it("keeps a concurrent template rename when another template deletion finishes later", async () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  const prompt = vi.spyOn(window, "prompt").mockReturnValue("重命名后的项目模板");
+  let resolveDelete: (() => void) | undefined;
+  let storedTemplates = [
+    { id: "default", name: "默认模板", version: 1, is_global: true, categories: [{ id: "work", name: "工作", description: "工作资料", default_enabled: true }] },
+    { id: "saved-1", name: "旧模板1", version: 1, is_global: false, categories: [{ id: "study", name: "学习", description: "学习资料", default_enabled: true }] },
+    { id: "saved-2", name: "旧模板2", version: 1, is_global: false, categories: [{ id: "code", name: "代码", description: "代码资料", default_enabled: true }] },
+  ];
+  aiApi.deleteAiCategoryTemplate.mockImplementation(() => new Promise<void>((resolve) => {
+    resolveDelete = () => {
+      storedTemplates = storedTemplates.filter((template) => template.id !== "saved-1");
+      resolve();
+    };
+  }));
+  aiApi.getAiCategoryTemplates.mockImplementation(async () => storedTemplates);
+  aiApi.renameAiCategoryTemplate.mockImplementation(async () => {
+    storedTemplates = storedTemplates.map((template) => template.id === "saved-2" ? { ...template, name: "重命名后的项目模板" } : template);
+    return storedTemplates.find((template) => template.id === "saved-2")!;
+  });
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
+
+  await screen.findByText("模型已就绪");
+  fireEvent.click(screen.getByRole("button", { name: "配置分类" }));
+  fireEvent.click(screen.getByRole("button", { name: /旧模板1/ }));
+  fireEvent.click(screen.getAllByRole("button", { name: "删除模板" }).at(-1)!);
+  fireEvent.click(screen.getByRole("button", { name: /旧模板2/ }));
+  fireEvent.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!);
+  await waitFor(() => expect(aiApi.renameAiCategoryTemplate).toHaveBeenCalledWith("saved-2", "重命名后的项目模板"));
+  resolveDelete?.();
+  await waitFor(() => expect(screen.getAllByText("重命名后的项目模板").length).toBeGreaterThanOrEqual(1));
+  expect(screen.getAllByText("默认模板").length).toBeGreaterThanOrEqual(1);
+  confirm.mockRestore();
+  prompt.mockRestore();
+});
+
 it("starts a new non-global template with an editable category", async () => {
   aiApi.getAiCategories.mockResolvedValue([]);
   render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);

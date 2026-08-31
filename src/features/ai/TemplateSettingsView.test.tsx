@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import type { AiCategory, AiCategoryTemplate } from "../../types/ai";
@@ -7,7 +7,8 @@ import { TemplateSettingsView } from "./TemplateSettingsView";
 const categories: AiCategory[] = [];
 const templates: AiCategoryTemplate[] = [
   { id: "global", name: "默认方案", version: 2, is_global: true, categories: [] },
-  { id: "common", name: "项目资料", version: 1, is_global: false, categories: [] },
+  { id: "common-1", name: "项目资料", version: 1, is_global: false, categories: [] },
+  { id: "common-2", name: "学习资料", version: 1, is_global: false, categories: [] },
 ];
 
 it("offers rename for the global template and reusable actions for common templates", () => {
@@ -39,7 +40,11 @@ it("offers rename for the global template and reusable actions for common templa
   );
 
   expect(screen.getByRole("heading", { name: "全局模板（默认）" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "常用模板" })).toBeInTheDocument();
-  expect(screen.getAllByRole("button", { name: "重命名" }).length).toBeGreaterThanOrEqual(2);
-  expect(screen.getByRole("button", { name: "设为全局" })).toBeInTheDocument();
+  const commonGroup = screen.getByRole("region", { name: "常用模板" });
+  expect(commonGroup).toBeInTheDocument();
+  for (const name of ["默认方案", "项目资料", "学习资料"]) {
+    expect(within(commonGroup).getByText(name)).toBeInTheDocument();
+  }
+  expect(screen.getAllByRole("button", { name: "重命名" }).length).toBeGreaterThanOrEqual(3);
+  expect(screen.getAllByRole("button", { name: "设为全局" }).length).toBeGreaterThanOrEqual(2);
 });
