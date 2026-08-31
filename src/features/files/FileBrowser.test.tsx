@@ -33,6 +33,12 @@ describe("FileBrowser", () => {
     expect(screen.getByTitle("C:/Docs/报告.pdf")).toBeInTheDocument();
   });
 
+  it("shows a readable path when Rust returns an extended Windows path", () => {
+    render(<FileBrowser state={state({ result: { entries: [{ id: 1, normalized_path: String.raw`\\?\C:\Docs\报告.pdf`, name: "报告.pdf", extension: "pdf", kind: "file", size: 2048, modified_ms: 1_700_000_000_000 }], total: 1, page: 1, page_size: 50, total_pages: 1 } })} changeNotice={false} watcherError={null} />);
+    expect(screen.getByTitle("C:\\Docs\\报告.pdf")).toBeInTheDocument();
+    expect(screen.queryByText(String.raw`\\?\C:\Docs\报告.pdf`)).not.toBeInTheDocument();
+  });
+
   it("notifies the user when index events refreshed the results", () => {
     render(<FileBrowser state={state()} changeNotice={true} watcherError={null} />);
     expect(screen.getByRole("status")).toHaveTextContent("磁盘变化已同步");

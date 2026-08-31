@@ -1,4 +1,5 @@
 import type { OperationPreviewResponse } from "../../types/operations";
+import { formatDisplayPath } from "../../lib/path-display";
 
 export function OperationPreviewEmptyView({ onNavigate }: { onNavigate: () => void }) {
   return (
@@ -40,9 +41,9 @@ export function OperationPreviewView({
         {preview.items.map((item) => (
           <article key={item.index} className="operation-preview-row">
             <div className="operation-path-grid">
-              <span title={item.sourcePath}>{item.sourcePath}</span>
+              <span title={formatDisplayPath(item.sourcePath)}>{formatDisplayPath(item.sourcePath)}</span>
               <span className="operation-arrow" aria-hidden="true">→</span>
-              <span title={item.targetPath}>{item.targetPath}</span>
+              <span title={formatDisplayPath(item.targetPath)}>{formatDisplayPath(item.targetPath)}</span>
             </div>
             <div className="operation-row-status">
               {item.status === "valid" ? <span className="is-valid">校验通过</span> : <span className="is-invalid">{item.reason ?? "校验失败"}</span>}

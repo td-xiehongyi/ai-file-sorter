@@ -390,7 +390,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
   }
 
   async function renameTemplate(target: AiCategoryTemplate | null = templateDraft) {
-    if (!target || target.is_global) return;
+    if (!target) return;
     const name = window.prompt("请输入新的模板名称", target.name)?.trim();
     if (!name || name === target.name) return;
     setError(null);

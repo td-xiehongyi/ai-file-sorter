@@ -191,12 +191,9 @@ pub fn rename_ai_category_template<R: Runtime>(
         return Err("模板名称不能为空".to_string().into());
     }
     let connection = open_database(&app)?;
-    let template = ai_repository::read_category_template(&connection, &template_id)
+    ai_repository::read_category_template(&connection, &template_id)
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "分类模板不存在".to_string())?;
-    if template.is_global {
-        return Err("全局模板不能重命名".to_string().into());
-    }
     if ai_repository::category_template_name_exists(&connection, name, Some(&template_id))
         .map_err(|error| error.to_string())?
     {

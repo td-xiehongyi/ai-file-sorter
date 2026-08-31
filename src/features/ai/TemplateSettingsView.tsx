@@ -51,6 +51,12 @@ export function TemplateSettingsView({
   onAddCategory,
   onSaveCategories,
 }: Props) {
+  const globalTemplates = templates.filter((template) => template.is_global);
+  const commonTemplates = templates.filter((template) => !template.is_global);
+  const renderTemplate = (template: AiCategoryTemplate) => <article key={template.id} className={`template-list-item${selectedTemplateId === template.id ? " is-selected" : ""}`}>
+    <button type="button" onClick={() => onSelectTemplate(template.id)} className="template-list-select"><span>{template.name}</span><small>v{template.version} · {template.is_global ? "当前全局" : "常用模板"}</small></button>
+    <div className="template-list-actions"><button type="button" onClick={() => onSelectTemplate(template.id)} className="template-link">查看/修改</button><button type="button" onClick={() => onRenameTemplate(template)} className="template-link">重命名</button>{!template.is_global && <><button type="button" onClick={() => onMakeGlobal(template)} className="template-link">设为全局</button><button type="button" onClick={() => onRemoveTemplate(template)} className="template-link danger">删除模板</button></>}</div>
+  </article>;
   return (
     <section aria-labelledby="template-settings-title" className="ai-panel template-settings-view">
       <div className="ai-view-heading">
@@ -67,17 +73,15 @@ export function TemplateSettingsView({
           <div className="template-section-heading"><div><h3 id="template-library-title">模板库</h3><p>全局模板会成为文件分析时的默认方案。</p></div><button type="button" onClick={onNewTemplate} className="prototype-button primary">新建模板</button></div>
           {templates.length === 0 && <p className="template-empty">还没有保存的模板。</p>}
           <div className="template-list" aria-label="模板列表">
-            {templates.map((template) => <article key={template.id} className={`template-list-item${selectedTemplateId === template.id ? " is-selected" : ""}`}>
-              <button type="button" onClick={() => onSelectTemplate(template.id)} className="template-list-select"><span>{template.name}</span><small>v{template.version} · {template.is_global ? "当前全局" : "已保存"}</small></button>
-              <div className="template-list-actions"><button type="button" onClick={() => onSelectTemplate(template.id)} className="template-link">查看/修改</button>{!template.is_global && <><button type="button" onClick={() => onRenameTemplate(template)} className="template-link">重命名</button><button type="button" onClick={() => onMakeGlobal(template)} className="template-link">设为全局</button><button type="button" onClick={() => onRemoveTemplate(template)} className="template-link danger">删除模板</button></>}</div>
-            </article>)}
+            <section className="template-list-group" aria-labelledby="global-template-group-title"><h4 id="global-template-group-title">全局模板（默认）</h4>{globalTemplates.length ? globalTemplates.map(renderTemplate) : <p className="template-empty">尚未设置全局模板。</p>}</section>
+            <section className="template-list-group" aria-labelledby="common-template-group-title"><h4 id="common-template-group-title">常用模板</h4>{commonTemplates.length ? commonTemplates.map(renderTemplate) : <p className="template-empty">还没有保存的常用模板。</p>}</section>
           </div>
         </section>
 
         <section className="template-editor" aria-labelledby="template-editor-title">
           {!templateDraft ? <p className="template-empty">选择一个模板开始编辑，或新建模板。</p> : <>
             <div className="template-section-heading"><div><h3 id="template-editor-title">{templateDraft.name}</h3><p>模板版本 v{templateDraft.version}{templateDirty ? " · 有未保存修改" : ""}</p></div><span className={`template-badge${templateDraft.is_global ? " is-global" : ""}`}>{templateDraft.is_global ? "当前全局" : "已保存"}</span></div>
-            <div className="template-editor-actions">{!templateDraft.is_global && <><button type="button" onClick={() => onRenameTemplate()} className="prototype-button">重命名</button><button type="button" onClick={() => onMakeGlobal()} className="prototype-button">设为全局</button><button type="button" onClick={() => onRemoveTemplate()} className="prototype-button danger">删除模板</button></>}</div>
+            <div className="template-editor-actions"><button type="button" onClick={() => onRenameTemplate()} className="prototype-button">重命名</button>{!templateDraft.is_global && <><button type="button" onClick={() => onMakeGlobal()} className="prototype-button">设为全局</button><button type="button" onClick={() => onRemoveTemplate()} className="prototype-button danger">删除模板</button></>}</div>
             <label className="prototype-field-label">模板名称<input aria-label="模板名称" disabled={templateDraft.is_global || templateDraft.version > 0} value={templateDraft.name} onChange={(event) => onTemplateNameChange(event.target.value)} className="prototype-field" /></label>
             <div className="template-category-list">{templateDraft.categories.map((category, index) => <div key={`${category.id}-${index}`} className="template-category-row">
               <input aria-label={`模板分类 ${index + 1} 名称`} value={category.name} onChange={(event) => onTemplateCategoryChange(index, "name", event.target.value)} className="prototype-field" />

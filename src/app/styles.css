@@ -747,6 +747,23 @@ body {
   gap: 8px;
 }
 
+.template-list-group {
+  display: grid;
+  gap: 8px;
+}
+
+.template-list-group + .template-list-group {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.template-list-group h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 12px;
+}
+
 .template-list-item {
   padding: 9px;
   border: 1px solid var(--color-border);

@@ -255,7 +255,7 @@ it("deletes a local category without deleting its directory", async () => {
   confirm.mockRestore();
 });
 
-it("renders a template library and hides rename/delete for the global template", async () => {
+it("renders a template library with rename for the global template and no global delete", async () => {
   render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
 
   await screen.findByText("模型已就绪");
@@ -264,7 +264,7 @@ it("renders a template library and hides rename/delete for the global template",
   expect(screen.getByText("模板库")).toBeInTheDocument();
   expect(screen.getByText("当前全局")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "新建模板" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "重命名" })).not.toBeInTheDocument();
+  expect(screen.getAllByRole("button", { name: "重命名" }).length).toBeGreaterThan(0);
   expect(screen.queryByRole("button", { name: "删除模板" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "应用模板" })).not.toBeInTheDocument();
 });

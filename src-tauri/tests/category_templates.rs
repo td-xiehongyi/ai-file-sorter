@@ -106,7 +106,7 @@ fn global_template_reference_is_unique_and_reported_with_templates() {
 }
 
 #[test]
-fn renaming_non_global_template_keeps_version_and_global_template_is_protected() {
+fn renaming_any_template_keeps_version_and_global_template_remains_protected_from_deletion() {
     let mut connection = database::open_memory_database().unwrap();
     let categories = vec![TemplateCategory {
         id: "work".into(),
@@ -142,7 +142,7 @@ fn renaming_non_global_template_keeps_version_and_global_template_is_protected()
     assert_eq!(renamed.name, "已重命名模板");
     assert_eq!(renamed.version, ordinary.version);
     assert!(
-        !ai_repository::rename_category_template(&connection, &global.id, "禁止重命名", "5",)
+        ai_repository::rename_category_template(&connection, &global.id, "重命名后的全局模板", "5",)
             .unwrap()
     );
     assert_eq!(
@@ -150,7 +150,14 @@ fn renaming_non_global_template_keeps_version_and_global_template_is_protected()
             .unwrap()
             .unwrap()
             .name,
-        "全局模板"
+        "重命名后的全局模板"
+    );
+    assert_eq!(
+        ai_repository::read_category_template(&connection, &global.id)
+            .unwrap()
+            .unwrap()
+            .version,
+        global.version
     );
 }
 

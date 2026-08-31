@@ -190,10 +190,6 @@ pub fn rename_category_template(
          SET name = ?2, updated_at = ?3
          WHERE template_id = ?1
            AND NOT EXISTS (
-               SELECT 1 FROM ai_template_settings
-               WHERE singleton_id = 1 AND global_template_id = ?1
-           )
-           AND NOT EXISTS (
                SELECT 1 FROM ai_category_templates
                WHERE unicode_lower(name) = unicode_lower(?2) AND template_id <> ?1
            )",
