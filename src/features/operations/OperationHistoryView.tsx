@@ -1,5 +1,5 @@
 import type { OperationHistoryItem } from "../../types/operations";
-import { formatDisplayPath } from "../../lib/path-display";
+import { PathDisplay } from "../../components/PathDisplay";
 
 export function OperationHistoryView({
   items,
@@ -28,7 +28,7 @@ export function OperationHistoryView({
               {item.undoStatus === "available" && <button type="button" disabled={busy} onClick={() => onUndo(item.id)} className="prototype-button">撤销</button>}
               {item.undoStatus === "undone" && <span className="operation-secondary-status">已撤销</span>}
             </div>
-            <div className="operation-history-paths"><span title={formatDisplayPath(item.sourcePath)}>From：{formatDisplayPath(item.sourcePath)}</span><span title={formatDisplayPath(item.targetPath)}>To：{formatDisplayPath(item.targetPath)}</span></div>
+            <div className="operation-history-paths"><span><strong>From：</strong><PathDisplay path={item.sourcePath} /></span><span><strong>To：</strong><PathDisplay path={item.targetPath} /></span></div>
             {item.reason && <p className="operation-history-reason">{item.reason}</p>}
             {item.undoStatus === "unavailable" && item.undoReason && <p className="operation-history-unavailable">撤销不可用：{item.undoReason}</p>}
           </article>

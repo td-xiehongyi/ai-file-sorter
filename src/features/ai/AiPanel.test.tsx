@@ -7,6 +7,7 @@ import { AiPanel } from "./AiPanel";
 
 const aiApi = vi.hoisted(() => ({
   cancelAnalysisBatch: vi.fn(),
+  confirmAiReviewBatch: vi.fn(),
   confirmAnalysisResultPreview: vi.fn(),
   deleteAiCategory: vi.fn(),
   deleteAiCategoryTemplate: vi.fn(),
@@ -49,6 +50,7 @@ beforeEach(() => {
   aiApi.saveAiCategories.mockResolvedValue([]);
   aiApi.cancelAnalysisBatch.mockResolvedValue(undefined);
   aiApi.confirmAnalysisResultPreview.mockResolvedValue(undefined);
+  aiApi.confirmAiReviewBatch.mockResolvedValue(undefined);
   aiApi.deleteAiCategory.mockResolvedValue(undefined);
   aiApi.deleteAiCategoryTemplate.mockResolvedValue(undefined);
   aiApi.saveAiCategoryTemplate.mockResolvedValue({ id: "default", name: "默认模板", version: 2, is_global: true, categories: [{ id: "work", name: "工作", description: "工作资料", default_enabled: true }] });
@@ -105,6 +107,7 @@ it("keeps the category selector and analysis action accessible", async () => {
   const selector = screen.getByLabelText("分类方案");
   selector.focus();
   expect(document.activeElement).toBe(selector);
+  expect(screen.getByRole("option", { name: "默认模板 · 全局默认 · v1" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "分析所选文件（1）" })).not.toBeDisabled();
 });
 
@@ -116,6 +119,7 @@ it("submits the selected saved template as the analysis category source", async 
   render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
 
   await screen.findByText("模型已就绪");
+  expect(screen.getByRole("option", { name: "项目模板 · v3" })).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("分类方案"), { target: { value: "template:saved" } });
   fireEvent.click(screen.getByRole("button", { name: "分析所选文件（1）" }));
 
@@ -166,7 +170,7 @@ it("accepts an edited suggestion as an operation draft for phase four preview", 
     suggested_filename: "最终会议.md",
     category_id: "work",
   }));
-  expect(onPreview).toHaveBeenCalledWith(await aiApi.reviewAnalysisResult.mock.results[0].value);
+  expect(onPreview).toHaveBeenCalledWith(await aiApi.reviewAnalysisResult.mock.results[0].value, { navigate: false });
   expect(aiApi.confirmAnalysisResultPreview).toHaveBeenCalledWith("result-1", "plan-1");
 });
 
@@ -184,6 +188,63 @@ it("keeps a suggestion pending when phase four preview fails", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("预览失败");
   expect(aiApi.confirmAnalysisResultPreview).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "接受建议" })).toBeInTheDocument();
+});
+
+it("waits for every result decision before creating one combined preview", async () => {
+  const onPreview = vi.fn().mockResolvedValue({ canConfirm: true, planId: "plan-batch", expiresAt: "1", items: [] });
+  aiApi.getAnalysisResults.mockResolvedValue([
+    { id: "result-1", batch_id: "analysis-1", root_path: "C:/Docs", source_path: "C:/Docs/notes.md", content_fingerprint: "abc", provider: "ollama", model: "qwen2.5:7b", prompt_version: "phase5-v1", summary: "会议纪要", keywords: ["项目"], suggested_filename: "最终会议.md", category_id: "work", confidence: 0.9, reason: "工作资料", status: "pending", created_at: "1" },
+    { id: "result-2", batch_id: "analysis-1", root_path: "C:/Docs", source_path: "C:/Docs/table.md", content_fingerprint: "def", provider: "ollama", model: "qwen2.5:7b", prompt_version: "phase5-v1", summary: "项目说明", keywords: ["项目"], suggested_filename: "最终项目.md", category_id: "work", confidence: 0.9, reason: "工作资料", status: "pending", created_at: "1" },
+  ]);
+  aiApi.reviewAnalysisResult.mockImplementation(async (request: { result_id: string }) => ({
+    root_path: "C:/Docs",
+    items: [{ operation: "ai_organize", source_path: request.result_id === "result-1" ? "C:/Docs/notes.md" : "C:/Docs/table.md", category_id: "work", new_name: request.result_id === "result-1" ? "最终会议.md" : "最终项目.md", content_fingerprint: request.result_id === "result-1" ? "abc" : "def" }],
+  }));
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={onPreview} onChooseDirectory={vi.fn()} />);
+  await screen.findByText("模型已就绪");
+  fireEvent.click(screen.getByRole("button", { name: "分析所选文件（1）" }));
+  await waitFor(() => expect(progressListener).toBeDefined());
+  progressListener?.({ batch_id: "analysis-1", phase: "completed", completed_files: 2, total_files: 2, current_path: null, error_count: 0 });
+  await screen.findByText("项目说明");
+
+  const acceptButtons = screen.getAllByRole("button", { name: "接受建议" });
+  fireEvent.click(acceptButtons[0]);
+  await waitFor(() => expect(aiApi.reviewAnalysisResult).toHaveBeenCalledWith(expect.objectContaining({ result_id: "result-1" })));
+  expect(onPreview).not.toHaveBeenCalled();
+  expect(screen.getByText(/审查进度/)).toHaveTextContent("已处理 1/2");
+
+  fireEvent.click(screen.getAllByRole("button", { name: "接受建议" })[0]);
+  await waitFor(() => expect(onPreview).toHaveBeenCalledTimes(1));
+  expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ root_path: "C:/Docs", items: expect.arrayContaining([
+    expect.objectContaining({ source_path: "C:/Docs/notes.md" }),
+    expect.objectContaining({ source_path: "C:/Docs/table.md" }),
+  ]) }), { navigate: false });
+  expect(aiApi.confirmAiReviewBatch).toHaveBeenCalledWith(["result-1", "result-2"], "plan-batch");
+});
+
+it("excludes rejected results from the combined preview", async () => {
+  const onPreview = vi.fn().mockResolvedValue({ canConfirm: true, planId: "plan-mixed", expiresAt: "1", items: [] });
+  aiApi.getAnalysisResults.mockResolvedValue([
+    { id: "result-1", batch_id: "analysis-1", root_path: "C:/Docs", source_path: "C:/Docs/notes.md", content_fingerprint: "abc", provider: "ollama", model: "qwen2.5:7b", prompt_version: "phase5-v1", summary: "会议纪要", keywords: ["项目"], suggested_filename: "最终会议.md", category_id: "work", confidence: 0.9, reason: "工作资料", status: "pending", created_at: "1" },
+    { id: "result-2", batch_id: "analysis-1", root_path: "C:/Docs", source_path: "C:/Docs/table.md", content_fingerprint: "def", provider: "ollama", model: "qwen2.5:7b", prompt_version: "phase5-v1", summary: "项目说明", keywords: ["项目"], suggested_filename: "最终项目.md", category_id: "work", confidence: 0.9, reason: "工作资料", status: "pending", created_at: "1" },
+  ]);
+  aiApi.reviewAnalysisResult.mockImplementation(async (request: { result_id: string; action: string }) => request.action === "accept"
+    ? { root_path: "C:/Docs", items: [{ operation: "ai_organize", source_path: "C:/Docs/notes.md", category_id: "work", new_name: "最终会议.md", content_fingerprint: "abc" }] }
+    : null);
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={onPreview} onChooseDirectory={vi.fn()} />);
+  await screen.findByText("模型已就绪");
+  fireEvent.click(screen.getByRole("button", { name: "分析所选文件（1）" }));
+  await waitFor(() => expect(progressListener).toBeDefined());
+  progressListener?.({ batch_id: "analysis-1", phase: "completed", completed_files: 2, total_files: 2, current_path: null, error_count: 0 });
+  await screen.findByText("项目说明");
+
+  fireEvent.click(screen.getAllByRole("button", { name: "拒绝" })[0]);
+  await waitFor(() => expect(screen.getByText("状态：rejected")).toBeInTheDocument());
+  fireEvent.click(screen.getAllByRole("button", { name: "接受建议" })[0]);
+  await waitFor(() => expect(onPreview).toHaveBeenCalledTimes(1));
+  expect(onPreview.mock.calls[0][0].items).toHaveLength(1);
+  expect(onPreview.mock.calls[0][0].items[0].source_path).toBe("C:/Docs/notes.md");
+  expect(aiApi.confirmAnalysisResultPreview).toHaveBeenCalledWith("result-2", "plan-mixed");
 });
 
 it("shows cancellation immediately and recovers the final state through polling", async () => {
@@ -302,7 +363,6 @@ it("syncs a generated category ID from a safe visible name before saving", async
 
 it("allows a non-global template to be renamed and made global", async () => {
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-  const prompt = vi.spyOn(window, "prompt").mockReturnValue("项目模板");
   aiApi.getAiCategoryTemplates.mockResolvedValue([
     { id: "default", name: "默认模板", version: 1, is_global: true, categories: [{ id: "work", name: "工作", description: "工作资料", default_enabled: true }] },
     { id: "saved", name: "旧模板", version: 2, is_global: false, categories: [{ id: "study", name: "学习", description: "学习资料", default_enabled: true }] },
@@ -317,13 +377,13 @@ it("allows a non-global template to be renamed and made global", async () => {
   expect(screen.getAllByRole("button", { name: "删除模板" }).length).toBeGreaterThan(0);
 
   fireEvent.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!);
+  fireEvent.change(screen.getByLabelText("重命名模板名称"), { target: { value: "项目模板" } });
+  fireEvent.click(screen.getByRole("button", { name: "确认重命名" }));
   await waitFor(() => expect(aiApi.renameAiCategoryTemplate).toHaveBeenCalledWith("saved", "项目模板"));
   fireEvent.click(screen.getAllByRole("button", { name: "设为全局" }).at(-1)!);
   await waitFor(() => expect(aiApi.setGlobalAiCategoryTemplate).toHaveBeenCalledWith("saved"));
   expect(confirm).toHaveBeenCalled();
-  expect(prompt).toHaveBeenCalled();
   confirm.mockRestore();
-  prompt.mockRestore();
 });
 
 it("allows deleting a non-global template", async () => {
@@ -342,7 +402,6 @@ it("allows deleting a non-global template", async () => {
 
 it("keeps a concurrent template rename when another template deletion finishes later", async () => {
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-  const prompt = vi.spyOn(window, "prompt").mockReturnValue("重命名后的项目模板");
   let resolveDelete: (() => void) | undefined;
   let storedTemplates = [
     { id: "default", name: "默认模板", version: 1, is_global: true, categories: [{ id: "work", name: "工作", description: "工作资料", default_enabled: true }] },
@@ -368,12 +427,13 @@ it("keeps a concurrent template rename when another template deletion finishes l
   fireEvent.click(screen.getAllByRole("button", { name: "删除模板" }).at(-1)!);
   fireEvent.click(screen.getByRole("button", { name: /旧模板2/ }));
   fireEvent.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!);
+  fireEvent.change(screen.getByLabelText("重命名模板名称"), { target: { value: "重命名后的项目模板" } });
+  fireEvent.click(screen.getByRole("button", { name: "确认重命名" }));
   await waitFor(() => expect(aiApi.renameAiCategoryTemplate).toHaveBeenCalledWith("saved-2", "重命名后的项目模板"));
   resolveDelete?.();
   await waitFor(() => expect(screen.getAllByText("重命名后的项目模板").length).toBeGreaterThanOrEqual(1));
   expect(screen.getAllByText("默认模板").length).toBeGreaterThanOrEqual(1);
   confirm.mockRestore();
-  prompt.mockRestore();
 });
 
 it("starts a new non-global template with an editable category", async () => {

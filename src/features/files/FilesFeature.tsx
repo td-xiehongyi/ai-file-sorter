@@ -143,14 +143,14 @@ export function FilesFeature({ activeView = "files", onNavigate = () => undefine
     });
   }
 
-  async function handlePreview(draft: OperationDraft) {
+  async function handlePreview(draft: OperationDraft, options?: { navigate?: boolean }) {
     setOperationError(null);
     setOperationResult(null);
     setOperationBusy(true);
     try {
       const preview = await previewOperations(draft);
       setOperationPreview(preview);
-      onNavigate("preview");
+      if (options?.navigate !== false) onNavigate("preview");
       return preview;
     } catch (cause) {
       setOperationError(cause instanceof Error ? cause.message : "无法生成操作预览。");
@@ -235,7 +235,7 @@ export function FilesFeature({ activeView = "files", onNavigate = () => undefine
           : <OperationPreviewEmptyView onNavigate={() => onNavigate("ai")} />)}
         {activeView === "history" && <OperationHistory items={history} onUndo={(historyId) => void handleUndo(historyId)} busy={operationBusy} />}
         <div className="workspace-ai-view">
-          {rootPath && <AiPanel activeView={activeView} rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} onChooseDirectory={chooseTargetDirectory} onNavigate={onNavigate} />}
+          {rootPath && <AiPanel activeView={activeView} rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} onDiscardPreview={cancelOperationPlan} onChooseDirectory={chooseTargetDirectory} onNavigate={onNavigate} />}
           {!rootPath && activeView === "ai" && <section className="workspace-empty-view"><h2>请先选择目录</h2><p>进入文件浏览页授权目录后，才能开始 AI 分析。</p></section>}
           {!rootPath && activeView === "settings" && <section className="workspace-empty-view"><h2>请先选择目录</h2><p>模板和当前目录分类设置需要先授权一个目录。</p></section>}
         </div>

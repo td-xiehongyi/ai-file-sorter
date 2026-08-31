@@ -495,6 +495,30 @@ pub fn update_result_status(
     )? == 1)
 }
 
+pub fn update_result_status_batch(
+    connection: &mut rusqlite::Connection,
+    result_ids: &[String],
+    status: AnalysisResultStatus,
+) -> rusqlite::Result<bool> {
+    if result_ids.is_empty() {
+        return Ok(false);
+    }
+    let transaction = connection.transaction()?;
+    let mut updated = 0usize;
+    for result_id in result_ids {
+        updated += transaction.execute(
+            "UPDATE ai_analysis_results SET status = ?2 WHERE id = ?1 AND status = 'pending'",
+            params![result_id, status.as_str()],
+        )?;
+    }
+    if updated != result_ids.len() {
+        transaction.rollback()?;
+        return Ok(false);
+    }
+    transaction.commit()?;
+    Ok(true)
+}
+
 pub fn update_pending_result_suggestion(
     connection: &Connection,
     result_id: &str,

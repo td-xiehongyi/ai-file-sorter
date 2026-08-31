@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cancelAnalysisBatch,
+  confirmAiReviewBatch,
   confirmAnalysisResultPreview,
   deleteAiCategory,
   deleteAiCategoryTemplate,
@@ -28,7 +29,8 @@ import { TemplateSettingsView } from "./TemplateSettingsView";
 type Props = {
   rootPath: string;
   selectedEntries: SearchEntry[];
-  onPreview: (draft: OperationDraft) => Promise<OperationPreviewResponse>;
+  onPreview: (draft: OperationDraft, options?: { navigate?: boolean }) => Promise<OperationPreviewResponse>;
+  onDiscardPreview?: (planId: string) => Promise<void>;
   onChooseDirectory: () => Promise<string | null>;
   activeView?: "files" | "ai" | "preview" | "history" | "settings";
   onNavigate?: (view: "files" | "ai" | "preview" | "history" | "settings") => void;
@@ -67,7 +69,7 @@ function isSupportedEntry(entry: SearchEntry): boolean {
     || supportedExtensions.has((entry.extension ?? "").toLowerCase());
 }
 
-export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai", onNavigate }: Props) {
+export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview, activeView = "ai", onNavigate }: Props) {
   const [model, setModel] = useState("qwen2.5:7b");
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
   const [categories, setCategories] = useState<AiCategory[]>([]);
@@ -88,6 +90,11 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
   const [setupLoading, setSetupLoading] = useState(true);
   const [settingsReturnView, setSettingsReturnView] = useState<"files" | "ai">("ai");
   const [settingsOpenedFromAction, setSettingsOpenedFromAction] = useState(false);
+  const [renamingTemplateId, setRenamingTemplateId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [reviewDecisions, setReviewDecisions] = useState<Record<string, "accepted" | "rejected">>({});
+  const [acceptedDrafts, setAcceptedDrafts] = useState<Record<string, OperationDraft>>({});
+  const [reviewBusy, setReviewBusy] = useState(false);
   const templateRefreshGeneration = useRef(0);
   const selectedTemplateIdRef = useRef("");
   useEffect(() => {
@@ -119,6 +126,10 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
               ? "正在等待当前模型请求结束，分析结果会被丢弃。"
               : "分析任务正在运行，请等待完成或取消任务。"
             : null;
+  const reviewProgress = {
+    processed: results.filter((result) => result.status !== "pending").length,
+    total: results.length,
+  };
 
   useEffect(() => {
     const generation = ++templateRefreshGeneration.current;
@@ -174,6 +185,9 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
         void getAnalysisResults(next.batch_id)
           .then((items) => {
             setResults(items);
+            setReviewDecisions({});
+            setAcceptedDrafts({});
+            setReviewBusy(false);
             setEdits(Object.fromEntries(items.map((item) => [item.id, {
               filename: item.suggested_filename,
               categoryId: item.category_id ?? "",
@@ -187,6 +201,11 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
         if (pollTimer !== undefined) window.clearInterval(pollTimer);
         setBusy(false);
         setCancelRequested(false);
+        if (next.phase === "cancelled") {
+          setReviewDecisions({});
+          setAcceptedDrafts({});
+          setReviewBusy(false);
+        }
       }
     }
 
@@ -250,6 +269,9 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     }
     setError(null);
     setResults([]);
+    setReviewDecisions({});
+    setAcceptedDrafts({});
+    setReviewBusy(false);
     setCancelRequested(false);
     setBusy(true);
     try {
@@ -323,6 +345,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
 
   function selectTemplate(templateId: string) {
     if (templateDirty && !window.confirm("当前模板有未保存的修改，确定放弃并切换吗？")) return;
+    setRenamingTemplateId(null);
     selectedTemplateIdRef.current = templateId;
     setSelectedTemplateId(templateId);
     setTemplateDraft(templates.find((template) => template.id === templateId) ?? null);
@@ -348,6 +371,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
 
   function newTemplate() {
     if (templateDirty && !window.confirm("当前模板有未保存的修改，确定放弃并新建模板吗？")) return;
+    setRenamingTemplateId(null);
     const seededCategories: TemplateCategory[] = categories.length > 0
       ? categories.map((category) => ({
         id: category.id,
@@ -414,14 +438,40 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     }
   }
 
-  async function renameTemplate(target: AiCategoryTemplate | null = templateDraft) {
+  function beginRenameTemplate(target: AiCategoryTemplate | null = templateDraft) {
     if (!target) return;
-    const name = window.prompt("请输入新的模板名称", target.name)?.trim();
-    if (!name || name === target.name) return;
+    if (templateDirty && !window.confirm("当前模板有未保存的修改，确定放弃并重命名吗？")) return;
+    selectedTemplateIdRef.current = target.id;
+    setSelectedTemplateId(target.id);
+    setTemplateDraft(target);
+    setTemplateDirty(false);
+    setError(null);
+    setRenamingTemplateId(target.id);
+    setRenameDraft(target.name);
+  }
+
+  function cancelRenameTemplate() {
+    setRenamingTemplateId(null);
+    setRenameDraft("");
+  }
+
+  async function renameTemplate() {
+    if (!renamingTemplateId) return;
+    const target = templates.find((template) => template.id === renamingTemplateId) ?? templateDraft;
+    const name = renameDraft.trim();
+    if (!target || !name) {
+      setError("模板名称不能为空。");
+      return;
+    }
+    if (name === target.name) {
+      cancelRenameTemplate();
+      return;
+    }
     setError(null);
     try {
       const renamed = await renameAiCategoryTemplate(target.id, name);
       await refreshTemplateLibrary(renamed.id);
+      cancelRenameTemplate();
     } catch (cause) {
       setError(messageOf(cause, "无法重命名分类模板。"));
     }
@@ -467,7 +517,48 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     setAnalysisSource(template ? { kind: "template", template_id: template.id, expected_version: template.version } : null);
   }
 
+  async function finalizeReview(
+    nextResults: AiAnalysisResult[],
+    nextDecisions: Record<string, "accepted" | "rejected">,
+    nextDrafts: Record<string, OperationDraft>,
+  ) {
+    if (nextResults.some((result) => result.status === "pending" && !nextDecisions[result.id])) return;
+    const acceptedIds = nextResults
+      .filter((result) => nextDecisions[result.id] === "accepted")
+      .map((result) => result.id);
+    if (acceptedIds.length === 0) {
+      setError(`已处理 ${nextResults.length}/${nextResults.length} 个文件，没有待执行操作。`);
+      return;
+    }
+    const acceptedItems = acceptedIds.flatMap((resultId) => nextDrafts[resultId]?.items ?? []);
+    if (acceptedItems.length === 0) {
+      throw new Error("没有可预览的已接受操作。 ");
+    }
+    let preview: OperationPreviewResponse | undefined;
+    try {
+      preview = await onPreview({ root_path: nextResults[0].root_path, items: acceptedItems }, { navigate: false });
+      if (!preview.canConfirm || !preview.planId) {
+        throw new Error("操作预览未通过校验，建议仍保持待审查状态。");
+      }
+      if (acceptedIds.length === 1) {
+        await confirmAnalysisResultPreview(acceptedIds[0], preview.planId);
+      } else {
+        await confirmAiReviewBatch(acceptedIds, preview.planId);
+      }
+      setResults((current) => current.map((result) => acceptedIds.includes(result.id) ? { ...result, status: "accepted" } : result));
+      onNavigate?.("preview");
+    } catch (cause) {
+      if (preview?.planId && onDiscardPreview) await onDiscardPreview(preview.planId).catch(() => undefined);
+      setResults((current) => current.map((result) => acceptedIds.includes(result.id) ? { ...result, status: "pending" } : result));
+      setReviewDecisions((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !acceptedIds.includes(id))));
+      setAcceptedDrafts((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !acceptedIds.includes(id))));
+      throw cause;
+    }
+  }
+
   async function review(item: AiAnalysisResult, action: "accept" | "reject") {
+    if (reviewBusy || item.status !== "pending") return;
+    setReviewBusy(true);
     setError(null);
     try {
       const edit = edits[item.id] ?? { filename: item.suggested_filename, categoryId: item.category_id ?? "" };
@@ -477,18 +568,22 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
         suggested_filename: action === "accept" ? edit.filename : null,
         category_id: action === "accept" && edit.categoryId ? edit.categoryId : null,
       });
-      if (!draft) {
-        setResults((current) => current.map((result) => result.id === item.id ? { ...result, status: "rejected" } : result));
-        return;
-      }
-      const preview = await onPreview(draft);
-      if (!preview.canConfirm || !preview.planId) {
-        throw new Error("操作预览未通过校验，建议仍保持待审查状态。");
-      }
-      await confirmAnalysisResultPreview(item.id, preview.planId);
-      setResults((current) => current.map((result) => result.id === item.id ? { ...result, status: "accepted" } : result));
+      const nextStatus: AiAnalysisResult["status"] = action === "accept" ? "accepted" : "rejected";
+      const nextDecision: "accepted" | "rejected" = action === "accept" ? "accepted" : "rejected";
+      const nextResults: AiAnalysisResult[] = results.map((result) => result.id === item.id ? { ...result, status: nextStatus } : result);
+      const nextDecisions: Record<string, "accepted" | "rejected"> = { ...reviewDecisions, [item.id]: nextDecision };
+      const nextDrafts = { ...acceptedDrafts };
+      if (draft) nextDrafts[item.id] = draft;
+      else delete nextDrafts[item.id];
+      setResults(nextResults);
+      setReviewDecisions(nextDecisions);
+      setAcceptedDrafts(nextDrafts);
+      await finalizeReview(nextResults, nextDecisions, nextDrafts);
     } catch (cause) {
       setError(messageOf(cause, "无法审查 AI 建议。"));
+      setResults((current) => current.map((result) => result.id === item.id && action === "accept" ? { ...result, status: "pending" } : result));
+    } finally {
+      setReviewBusy(false);
     }
   }
 
@@ -546,12 +641,17 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
       selectedTemplateId={selectedTemplateId}
       templateDraft={templateDraft}
       templateDirty={templateDirty}
+      renamingTemplateId={renamingTemplateId}
+      renameDraft={renameDraft}
       error={error}
       showClose={settingsOpenedFromAction || (!onNavigate && activeView !== "settings")}
       onClose={closeSettings}
       onNewTemplate={newTemplate}
       onSelectTemplate={selectTemplate}
-      onRenameTemplate={(template) => void renameTemplate(template)}
+      onRenameTemplate={beginRenameTemplate}
+      onRenameDraftChange={setRenameDraft}
+      onConfirmRename={() => void renameTemplate()}
+      onCancelRename={cancelRenameTemplate}
       onMakeGlobal={(template) => void makeGlobal(template)}
       onRemoveTemplate={(template) => void removeTemplate(template)}
       onTemplateNameChange={(value) => {
@@ -605,6 +705,8 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     onRefreshProvider={() => void refreshProvider()}
     templates={templates}
     analysisSource={analysisSource}
+    reviewProgress={reviewProgress}
+    reviewBusy={reviewBusy}
     onChooseAnalysisSource={chooseAnalysisSource}
     onOpenSettings={openSettings}
     showConfigureAction={provider?.available === true && !hasEnabledCategory}

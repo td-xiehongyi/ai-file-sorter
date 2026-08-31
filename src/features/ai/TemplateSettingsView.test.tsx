@@ -19,11 +19,16 @@ it("offers rename for the global template and reusable actions for common templa
       selectedTemplateId="global"
       templateDraft={templates[0]}
       templateDirty={false}
+      renamingTemplateId={null}
+      renameDraft=""
       error={null}
       onClose={vi.fn()}
       onNewTemplate={vi.fn()}
       onSelectTemplate={vi.fn()}
       onRenameTemplate={vi.fn()}
+      onRenameDraftChange={vi.fn()}
+      onConfirmRename={vi.fn()}
+      onCancelRename={vi.fn()}
       onMakeGlobal={vi.fn()}
       onRemoveTemplate={vi.fn()}
       onTemplateNameChange={vi.fn()}

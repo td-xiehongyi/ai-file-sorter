@@ -36,6 +36,7 @@ pub fn app_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Buil
             commands::ai::get_analysis_results,
             commands::ai::review_analysis_result,
             commands::ai::confirm_analysis_result_preview,
+            commands::ai::confirm_analysis_results_preview,
         ])
 }
 

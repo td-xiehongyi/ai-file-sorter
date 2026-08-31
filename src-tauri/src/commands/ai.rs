@@ -549,6 +549,22 @@ pub fn confirm_analysis_result_preview<R: Runtime>(
     .map_err(Into::into)
 }
 
+#[tauri::command]
+pub fn confirm_analysis_results_preview<R: Runtime>(
+    app: AppHandle<R>,
+    result_ids: Vec<String>,
+    plan_id: String,
+) -> Result<(), AppError> {
+    let mut connection = open_database(&app)?;
+    suggestion_review::confirm_results_preview(
+        &mut connection,
+        &app.state::<crate::services::plan_store::PlanStore>(),
+        &result_ids,
+        &plan_id,
+    )
+    .map_err(Into::into)
+}
+
 fn validate_categories(root: &Path, categories: Vec<Category>) -> Result<Vec<Category>, AppError> {
     if categories.is_empty() || categories.len() > 100 {
         return Err("分类数量必须位于 1 到 100 之间".to_string().into());

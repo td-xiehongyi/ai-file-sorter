@@ -6,9 +6,10 @@ use ai_file_organizer_lib::models::operation::{
     OperationValidationStatus,
 };
 use ai_file_organizer_lib::services::content_extractor::fingerprint_file;
+use ai_file_organizer_lib::services::operation_validator::validate_draft;
 use ai_file_organizer_lib::services::plan_store::PlanStore;
 use ai_file_organizer_lib::services::suggestion_review::{
-    ReviewAction, confirm_result_preview, review_result,
+    ReviewAction, confirm_result_preview, confirm_results_preview, review_result,
 };
 use ai_file_organizer_lib::storage::{ai_repository, database};
 
@@ -164,6 +165,176 @@ fn confirming_with_an_unrelated_plan_keeps_the_result_pending() {
             .unwrap()
             .status,
         AnalysisResultStatus::Pending
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn confirming_a_batch_marks_all_results_only_after_one_matching_plan() {
+    let root = temp_root("batch-confirm");
+    let source_one = root.join("notes.md");
+    let source_two = root.join("table.md");
+    fs::write(&source_one, "会议正文").unwrap();
+    fs::write(&source_two, "项目表格").unwrap();
+    let mut connection = database::open_memory_database().unwrap();
+    let first = seed(&mut connection, &root, &source_one);
+    let second = AiAnalysisRecord {
+        id: "result-2".into(),
+        source_path: source_two.to_string_lossy().into(),
+        content_fingerprint: fingerprint_file(&source_two).unwrap(),
+        suggested_filename: "项目表格.md".into(),
+        created_at: "2".into(),
+        ..first.clone()
+    };
+    ai_repository::insert_analysis_result(&connection, &second).unwrap();
+
+    let first_draft = review_result(
+        &connection,
+        &first.id,
+        ReviewAction::Accept,
+        None,
+        Some("work".into()),
+    )
+    .unwrap()
+    .unwrap();
+    let second_draft = review_result(
+        &connection,
+        &second.id,
+        ReviewAction::Accept,
+        None,
+        Some("work".into()),
+    )
+    .unwrap()
+    .unwrap();
+    let mut first_preview = validate_draft(&first_draft).unwrap();
+    let mut second_preview = validate_draft(&second_draft).unwrap();
+    assert!(first_preview.can_confirm && second_preview.can_confirm);
+    second_preview.items[0].index = 1;
+    first_preview.items.append(&mut second_preview.items);
+    let plan_store = PlanStore::default();
+    let token = plan_store.create(first_preview).unwrap();
+
+    confirm_results_preview(
+        &mut connection,
+        &plan_store,
+        &[first.id.clone(), second.id.clone()],
+        &token.plan_id,
+    )
+    .unwrap();
+    assert_eq!(
+        ai_repository::read_result(&connection, &first.id)
+            .unwrap()
+            .unwrap()
+            .status,
+        AnalysisResultStatus::Accepted
+    );
+    assert_eq!(
+        ai_repository::read_result(&connection, &second.id)
+            .unwrap()
+            .unwrap()
+            .status,
+        AnalysisResultStatus::Accepted
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn confirming_a_batch_with_duplicate_or_empty_ids_is_rejected() {
+    let root = temp_root("batch-invalid-ids");
+    let source = root.join("notes.md");
+    fs::write(&source, "正文").unwrap();
+    let mut connection = database::open_memory_database().unwrap();
+    let record = seed(&mut connection, &root, &source);
+    let plan_store = PlanStore::default();
+
+    assert!(confirm_results_preview(&mut connection, &plan_store, &[], "missing").is_err());
+    assert!(
+        confirm_results_preview(
+            &mut connection,
+            &plan_store,
+            &[record.id.clone(), record.id.clone()],
+            "missing",
+        )
+        .unwrap_err()
+        .contains("重复")
+    );
+    assert_eq!(
+        ai_repository::read_result(&connection, &record.id)
+            .unwrap()
+            .unwrap()
+            .status,
+        AnalysisResultStatus::Pending
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn confirming_a_batch_with_a_stale_result_keeps_the_other_result_pending() {
+    let root = temp_root("batch-stale");
+    let source_one = root.join("notes.md");
+    let source_two = root.join("table.md");
+    fs::write(&source_one, "会议正文").unwrap();
+    fs::write(&source_two, "项目表格").unwrap();
+    let mut connection = database::open_memory_database().unwrap();
+    let first = seed(&mut connection, &root, &source_one);
+    let second = AiAnalysisRecord {
+        id: "result-2".into(),
+        source_path: source_two.to_string_lossy().into(),
+        content_fingerprint: fingerprint_file(&source_two).unwrap(),
+        suggested_filename: "项目表格.md".into(),
+        created_at: "2".into(),
+        ..first.clone()
+    };
+    ai_repository::insert_analysis_result(&connection, &second).unwrap();
+    let first_draft = review_result(
+        &connection,
+        &first.id,
+        ReviewAction::Accept,
+        None,
+        Some("work".into()),
+    )
+    .unwrap()
+    .unwrap();
+    let second_draft = review_result(
+        &connection,
+        &second.id,
+        ReviewAction::Accept,
+        None,
+        Some("work".into()),
+    )
+    .unwrap()
+    .unwrap();
+    let mut preview_one = validate_draft(&first_draft).unwrap();
+    let mut preview_two = validate_draft(&second_draft).unwrap();
+    preview_two.items[0].index = 1;
+    preview_one.items.append(&mut preview_two.items);
+    let plan_store = PlanStore::default();
+    let token = plan_store.create(preview_one).unwrap();
+    fs::write(&source_two, "内容已变化").unwrap();
+
+    assert!(
+        confirm_results_preview(
+            &mut connection,
+            &plan_store,
+            &[first.id.clone(), second.id.clone()],
+            &token.plan_id,
+        )
+        .unwrap_err()
+        .contains("过期")
+    );
+    assert_eq!(
+        ai_repository::read_result(&connection, &first.id)
+            .unwrap()
+            .unwrap()
+            .status,
+        AnalysisResultStatus::Pending
+    );
+    assert_eq!(
+        ai_repository::read_result(&connection, &second.id)
+            .unwrap()
+            .unwrap()
+            .status,
+        AnalysisResultStatus::Expired
     );
     fs::remove_dir_all(root).unwrap();
 }

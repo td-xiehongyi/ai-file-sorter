@@ -173,3 +173,63 @@ pub fn confirm_result_preview(
     }
     Ok(())
 }
+
+pub fn confirm_results_preview(
+    connection: &mut rusqlite::Connection,
+    plan_store: &PlanStore,
+    result_ids: &[String],
+    plan_id: &str,
+) -> Result<(), String> {
+    if result_ids.is_empty() {
+        return Err("至少需要一个待确认的 AI 分析结果".into());
+    }
+    let mut unique_ids = std::collections::HashSet::new();
+    if result_ids
+        .iter()
+        .any(|result_id| !unique_ids.insert(result_id))
+    {
+        return Err("AI 分析结果不能重复确认".into());
+    }
+
+    let mut expected = Vec::with_capacity(result_ids.len());
+    for result_id in result_ids {
+        let record = ai_repository::read_result(connection, result_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "AI 分析结果不存在".to_string())?;
+        if record.status != AnalysisResultStatus::Pending {
+            return Err("该 AI 分析结果已经审查或过期".into());
+        }
+        let draft = review_result(
+            connection,
+            result_id,
+            ReviewAction::Accept,
+            None,
+            record.category_id.clone(),
+        )?
+        .ok_or_else(|| "AI 分析结果没有可确认的操作草案".to_string())?;
+        let preview = super::operation_validator::validate_draft(&draft)?;
+        if !preview.can_confirm || preview.items.len() != 1 {
+            return Err("AI 操作草案不再满足预览条件".into());
+        }
+        let item = &preview.items[0];
+        expected.push((
+            item.source_path.clone(),
+            item.target_path.clone(),
+            record.content_fingerprint,
+        ));
+    }
+
+    if !plan_store.valid_plan_matches_ai_results(plan_id, &expected)? {
+        return Err("操作计划与 AI 分析结果不匹配".into());
+    }
+    if !ai_repository::update_result_status_batch(
+        connection,
+        result_ids,
+        AnalysisResultStatus::Accepted,
+    )
+    .map_err(|error| error.to_string())?
+    {
+        return Err("AI 分析结果不存在或状态已变化".into());
+    }
+    Ok(())
+}

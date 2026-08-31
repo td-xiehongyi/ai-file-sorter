@@ -20,6 +20,8 @@ type Props = {
   onRefreshProvider: () => void;
   templates: AiCategoryTemplate[];
   analysisSource: AnalysisCategorySource | null;
+  reviewProgress: { processed: number; total: number };
+  reviewBusy: boolean;
   onChooseAnalysisSource: (value: string) => void;
   onOpenSettings: () => void;
   showConfigureAction: boolean;
@@ -47,6 +49,8 @@ export function AiReviewView({
   onRefreshProvider,
   templates,
   analysisSource,
+  reviewProgress,
+  reviewBusy,
   onChooseAnalysisSource,
   onOpenSettings,
   showConfigureAction,
@@ -71,6 +75,7 @@ export function AiReviewView({
           <span className="eyebrow">AI 建议审查</span>
           <h2 id="ai-panel-title">本地内容分析与整理建议</h2>
           <p>选择分类方案后，AI 会生成可审查的整理建议。</p>
+          {reviewProgress.total > 0 && <p className="ai-review-progress">审查进度：已处理 {reviewProgress.processed}/{reviewProgress.total} 个文件{reviewBusy ? " · 正在生成预览…" : ""}</p>}
         </div>
         <button type="button" onClick={onOpenSettings} className="prototype-button">配置分类</button>
       </div>
@@ -110,7 +115,7 @@ export function AiReviewView({
               <label>建议文件名<input aria-label={`${name} 的建议文件名`} value={edit.filename} disabled={item.status !== "pending"} onChange={(event) => onEdit(item.id, { ...edit, filename: event.target.value })} className="prototype-field" /></label>
               <label>目标分类<select aria-label={`${name} 的目标分类`} value={edit.categoryId} disabled={item.status !== "pending"} onChange={(event) => onEdit(item.id, { ...edit, categoryId: event.target.value })} className="prototype-select"><option value="">保留原目录</option>{categories.filter((category) => category.enabled).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             </div>
-            {item.status === "pending" ? <div className="ai-result-actions"><button type="button" onClick={() => onReview(item, "accept")} className="prototype-button primary">接受建议</button><button type="button" onClick={() => onReview(item, "reject")} className="prototype-button">拒绝</button></div> : <div className="ai-result-status">状态：{item.status}</div>}
+            {item.status === "pending" ? <div className="ai-result-actions"><button type="button" disabled={reviewBusy} onClick={() => onReview(item, "accept")} className="prototype-button primary">接受建议</button><button type="button" disabled={reviewBusy} onClick={() => onReview(item, "reject")} className="prototype-button">拒绝</button></div> : <div className="ai-result-status">状态：{item.status}</div>}
           </article>;
         })}
       </div>}

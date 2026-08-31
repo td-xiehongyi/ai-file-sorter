@@ -1,4 +1,5 @@
 import type { IndexStatus } from "../../types/files";
+import { PathDisplay } from "../../components/PathDisplay";
 import { formatDisplayPath } from "../../lib/path-display";
 
 export function DirectoryStatus({
@@ -16,7 +17,7 @@ export function DirectoryStatus({
     <div className="directory-status-grid">
       <div className="directory-status-card">
         <span className="directory-status-label">当前授权目录</span>
-        <span className="directory-status-value" title={displayRootPath ?? undefined}>{displayRootPath ?? "尚未选择目录"}</span>
+        <span className="directory-status-value">{displayRootPath ? <PathDisplay path={displayRootPath} /> : "尚未选择目录"}</span>
       </div>
       <div className="directory-status-card">
         <span className="directory-status-label">索引状态</span>

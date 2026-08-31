@@ -97,6 +97,10 @@ export function confirmAnalysisResultPreview(resultId: string, planId: string): 
   return invoke("confirm_analysis_result_preview", { resultId, planId });
 }
 
+export function confirmAiReviewBatch(resultIds: string[], planId: string): Promise<void> {
+  return invoke("confirm_analysis_results_preview", { resultIds, planId });
+}
+
 export async function listenForAnalysisProgress(
   listener: (progress: AnalysisProgress) => void,
 ): Promise<() => void> {

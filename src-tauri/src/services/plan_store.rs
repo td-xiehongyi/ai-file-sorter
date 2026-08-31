@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -78,6 +78,35 @@ impl PlanStore {
             && plan.items[0].source_path == source_path
             && plan.items[0].target_path == target_path
             && plan.items[0].content_fingerprint.as_deref() == Some(content_fingerprint))
+    }
+
+    pub fn valid_plan_matches_ai_results(
+        &self,
+        plan_id: &str,
+        expected: &[(PathBuf, PathBuf, String)],
+    ) -> Result<bool, String> {
+        let mut plans = self
+            .plans
+            .lock()
+            .map_err(|_| "计划状态不可用。".to_string())?;
+        let plan = plans
+            .get_mut(plan_id)
+            .ok_or_else(|| "操作计划不存在或已失效。".to_string())?;
+        if plan.state == PlanState::Valid && SystemTime::now() >= plan.expires_at {
+            plan.state = PlanState::Expired;
+        }
+        if plan.state != PlanState::Valid || plan.items.len() != expected.len() {
+            return Ok(false);
+        }
+        Ok(plan
+            .items
+            .iter()
+            .zip(expected)
+            .all(|(item, (source, target, fingerprint))| {
+                item.source_path == *source
+                    && item.target_path == *target
+                    && item.content_fingerprint.as_deref() == Some(fingerprint.as_str())
+            }))
     }
 
     pub fn create(&self, preview: OperationPreview) -> Result<PlanToken, String> {

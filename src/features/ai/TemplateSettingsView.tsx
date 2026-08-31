@@ -6,12 +6,17 @@ type Props = {
   selectedTemplateId: string;
   templateDraft: AiCategoryTemplate | null;
   templateDirty: boolean;
+  renamingTemplateId: string | null;
+  renameDraft: string;
   error: string | null;
   showClose?: boolean;
   onClose: () => void;
   onNewTemplate: () => void;
   onSelectTemplate: (templateId: string) => void;
   onRenameTemplate: (template?: AiCategoryTemplate | null) => void;
+  onRenameDraftChange: (value: string) => void;
+  onConfirmRename: () => void;
+  onCancelRename: () => void;
   onMakeGlobal: (template?: AiCategoryTemplate | null) => void;
   onRemoveTemplate: (template?: AiCategoryTemplate | null) => void;
   onTemplateNameChange: (value: string) => void;
@@ -32,12 +37,17 @@ export function TemplateSettingsView({
   selectedTemplateId,
   templateDraft,
   templateDirty,
+  renamingTemplateId,
+  renameDraft,
   error,
   showClose = true,
   onClose,
   onNewTemplate,
   onSelectTemplate,
   onRenameTemplate,
+  onRenameDraftChange,
+  onConfirmRename,
+  onCancelRename,
   onMakeGlobal,
   onRemoveTemplate,
   onTemplateNameChange,
@@ -81,7 +91,7 @@ export function TemplateSettingsView({
         <section className="template-editor" aria-labelledby="template-editor-title">
           {!templateDraft ? <p className="template-empty">选择一个模板开始编辑，或新建模板。</p> : <>
             <div className="template-section-heading"><div><h3 id="template-editor-title">{templateDraft.name}</h3><p>模板版本 v{templateDraft.version}{templateDirty ? " · 有未保存修改" : ""}</p></div><span className={`template-badge${templateDraft.is_global ? " is-global" : ""}`}>{templateDraft.is_global ? "当前全局" : "已保存"}</span></div>
-            <div className="template-editor-actions"><button type="button" onClick={() => onRenameTemplate()} className="prototype-button">重命名</button>{!templateDraft.is_global && <><button type="button" onClick={() => onMakeGlobal()} className="prototype-button">设为全局</button><button type="button" onClick={() => onRemoveTemplate()} className="prototype-button danger">删除模板</button></>}</div>
+            <div className="template-editor-actions">{renamingTemplateId === templateDraft.id ? <form className="template-rename-form" onSubmit={(event) => { event.preventDefault(); onConfirmRename(); }}><label className="prototype-field-label">重命名模板<input aria-label="重命名模板名称" value={renameDraft} onChange={(event) => onRenameDraftChange(event.target.value)} className="prototype-field" autoFocus /></label><button type="submit" className="prototype-button primary">确认重命名</button><button type="button" onClick={onCancelRename} className="prototype-button">取消</button></form> : <button type="button" onClick={() => onRenameTemplate()} className="prototype-button">重命名</button>}{renamingTemplateId !== templateDraft.id && !templateDraft.is_global && <><button type="button" onClick={() => onMakeGlobal()} className="prototype-button">设为全局</button><button type="button" onClick={() => onRemoveTemplate()} className="prototype-button danger">删除模板</button></>}</div>
             <label className="prototype-field-label">模板名称<input aria-label="模板名称" disabled={templateDraft.is_global || templateDraft.version > 0} value={templateDraft.name} onChange={(event) => onTemplateNameChange(event.target.value)} className="prototype-field" /></label>
             <div className="template-category-list">{templateDraft.categories.map((category, index) => <div key={`${category.id}-${index}`} className="template-category-row">
               <input aria-label={`模板分类 ${index + 1} 名称`} value={category.name} onChange={(event) => onTemplateCategoryChange(index, "name", event.target.value)} className="prototype-field" />

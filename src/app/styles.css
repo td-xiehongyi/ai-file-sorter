@@ -500,6 +500,11 @@ body {
   margin-right: 6px;
 }
 
+.directory-status-value .path-display {
+  min-width: 0;
+  font: inherit;
+}
+
 .ai-panel {
   display: grid;
   gap: 16px;
@@ -647,6 +652,13 @@ body {
   color: #80663a;
 }
 
+.ai-review-progress {
+  margin-top: 8px;
+  color: var(--color-accent);
+  font-family: "JetBrains Mono", var(--font-sans);
+  font-size: 13px;
+}
+
 .ai-results {
   display: grid;
   gap: 10px;
@@ -728,6 +740,18 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.template-rename-form {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.template-rename-form .prototype-field-label {
+  flex: 1 1 220px;
 }
 
 .template-settings-view {
@@ -936,11 +960,59 @@ body {
   font-size: 13px;
 }
 
-.operation-path-grid span:not(.operation-arrow),
-.operation-history-paths span {
+.path-display {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.path-display-value {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.path-copy-button {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.path-copy-button:hover,
+.path-copy-button:focus-visible {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+}
+
+.path-copy-status {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+  font-family: var(--font-sans);
+  font-size: 10px;
+}
+
+.operation-history-paths > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.operation-history-paths .path-display {
+  min-width: 0;
+  flex: 1;
+}
+
+.operation-history-paths strong {
+  flex: 0 0 auto;
 }
 
 .operation-arrow {
