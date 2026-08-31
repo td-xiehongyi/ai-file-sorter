@@ -25,5 +25,5 @@ fn application_builder_assembles_the_configured_main_window() {
         .expect("development mode should have a Vite-compatible CSP")
         .to_string();
     assert!(dev_csp.contains("'unsafe-inline'"));
-    assert!(dev_csp.contains("ws://localhost:1420"));
+    assert!(dev_csp.contains("ws://localhost:1500"));
 }

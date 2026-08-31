@@ -22,6 +22,7 @@ it("shows successful history and exposes undo only when available", () => {
   const onUndo = vi.fn();
   render(<OperationHistory items={[item]} onUndo={onUndo} busy={false} />);
 
+  expect(screen.getByRole("region", { name: "操作历史" })).toHaveClass("operation-history-view");
   expect(screen.getByText(/C:\/Docs\/archive\/source\.txt/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "撤销" }));
   expect(onUndo).toHaveBeenCalledWith(1);

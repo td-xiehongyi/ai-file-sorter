@@ -5,8 +5,7 @@ import { cancelOperationPlan, executeOperationPlan, getOperationHistory, preview
 import { listenForIndexChanges, listenForWatcherErrors } from "../../lib/search-api";
 import type { IndexStatus, ScanProgress, ScanSummary } from "../../types/files";
 import type { OperationBatchResult, OperationDraft, OperationHistoryItem, OperationPreviewResponse } from "../../types/operations";
-import { DirectoryPicker } from "./DirectoryPicker";
-import { FileBrowser } from "./FileBrowser";
+import { FileBrowserView } from "./FileBrowserView";
 import { ScanProgress as ScanProgressView } from "./ScanProgress";
 import { ScanSummary as ScanSummaryView } from "./ScanSummary";
 import { useFiles } from "./useFiles";
@@ -15,7 +14,9 @@ import { OperationPanel } from "../operations/OperationPanel";
 import { OperationPreview } from "../operations/OperationPreview";
 import { AiPanel } from "../ai/AiPanel";
 
-export function FilesFeature() {
+type WorkspaceView = "files" | "ai" | "preview" | "history" | "settings";
+
+export function FilesFeature({ activeView = "files" }: { activeView?: WorkspaceView }) {
   const [rootPath, setRootPath] = useState<string | null>(null);
   const [status, setStatus] = useState<IndexStatus | null>(null);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
@@ -208,29 +209,29 @@ export function FilesFeature() {
 
   return (
     <section className="relative z-10 mx-auto w-full max-w-6xl px-6 py-10 sm:px-10 lg:px-14">
-      <div className="flex flex-col gap-6 border-b border-white/10 pb-8 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-sm font-semibold uppercase tracking-[0.24em] text-emerald-300">Phase 5 · Local AI Suggestions</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white">扫描、理解并安全整理文件</h1><p className="mt-3 max-w-2xl text-slate-400">本地模型只生成建议；移动与重命名仍需查看 From / To 预览并明确确认。</p></div>
-        <DirectoryPicker onChoose={() => void chooseAndScan()} disabled={busy} />
-      </div>
-      <div className="mt-8 grid gap-4 md:grid-cols-[1fr_auto]">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5"><div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">当前授权目录</div><div className="mt-3 truncate text-sm text-slate-200">{rootPath ?? "尚未选择目录"}</div></div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5"><div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">索引状态</div><div className="mt-3 text-sm text-emerald-200">{status?.state === "ready" ? `已索引 ${status.indexed_entries} 个条目` : "等待扫描"}</div></div>
-      </div>
       <div className="mt-6 space-y-4">
-        {error && <div role="alert" className="rounded-2xl border border-rose-300/20 bg-rose-300/[0.08] p-4 text-sm text-rose-100">{error}</div>}
+        {error && <div role="alert" className="system-feedback is-error">{error}</div>}
         <ScanProgressView progress={progress} />
         {summary && <ScanSummaryView summary={summary} />}
-        {operationError && <div role="alert" className="rounded-2xl border border-rose-300/20 bg-rose-300/[0.08] p-4 text-sm text-rose-100">{operationError}</div>}
-        {rootPath && <AiPanel rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} onChooseDirectory={chooseTargetDirectory} />}
-        {rootPath && <OperationPanel rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} busy={operationBusy} onChooseTargetDirectory={chooseTargetDirectory} />}
+        {operationError && <div role="alert" className="system-feedback is-error">{operationError}</div>}
+        {activeView !== "ai" && activeView !== "settings" && <FileBrowserView
+          state={browserState}
+          rootPath={rootPath}
+          status={status}
+          busy={busy}
+          changeNotice={changeNotice}
+          watcherError={watcherError}
+          selectedPaths={selectedPaths}
+          onToggleSelection={toggleSelection}
+          onChooseDirectory={() => void chooseAndScan()}
+          onRescan={() => void rescanCurrentDirectory()}
+          onRebuild={() => void rebuildCurrentIndex()}
+        />}
+        {rootPath && <AiPanel activeView={activeView === "settings" ? "settings" : "ai"} rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} onChooseDirectory={chooseTargetDirectory} />}
+        {activeView !== "settings" && rootPath && <OperationPanel rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} busy={operationBusy} onChooseTargetDirectory={chooseTargetDirectory} />}
         {operationPreview && <OperationPreview preview={operationPreview} onConfirm={(planId) => void handleExecute(planId)} onCancel={() => void handleCancelPreview()} busy={operationBusy} />}
-        {operationResult && <div role="status" className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4 text-sm text-emerald-100">批次完成：{operationResult.items.filter((item) => item.status === "succeeded").length} 项成功，{operationResult.items.filter((item) => item.status === "failed").length} 项失败，{operationResult.items.filter((item) => item.status === "not_executed").length} 项未执行。</div>}
-        {rootPath && <FileBrowser state={browserState} changeNotice={changeNotice} watcherError={watcherError} selectedPaths={selectedPaths} onToggleSelection={toggleSelection} />}
-        {rootPath && <OperationHistory items={history} onUndo={(historyId) => void handleUndo(historyId)} busy={operationBusy} />}
-      </div>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <button type="button" disabled={!rootPath || busy} onClick={() => void rescanCurrentDirectory()} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:border-emerald-300/30 disabled:opacity-40">重新扫描</button>
-        <button type="button" disabled={busy} onClick={() => void rebuildCurrentIndex()} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:border-emerald-300/30 disabled:opacity-40">重建索引</button>
+        {operationResult && <div role="status" className="system-feedback is-success">批次完成：{operationResult.items.filter((item) => item.status === "succeeded").length} 项成功，{operationResult.items.filter((item) => item.status === "failed").length} 项失败，{operationResult.items.filter((item) => item.status === "not_executed").length} 项未执行。</div>}
+        {activeView !== "settings" && rootPath && <OperationHistory items={history} onUndo={(historyId) => void handleUndo(historyId)} busy={operationBusy} />}
       </div>
     </section>
   );

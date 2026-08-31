@@ -2,7 +2,7 @@
 
 ## 1. 文档目的
 
-本文定义 `ai-file-sorter` 前端重构后的视觉语言、页面结构和组件规则。它以当前完整版 HTML 原型为设计基线，不代表相应 React、Rust 或数据库功能已经全部实现。
+本文定义 `ai-file-sorter` 前端的视觉语言、页面结构和组件规则。React 已按当前完整版 HTML 原型完成主要视图迁移；Rust 安全模型和真实 API 仍是交互行为的规范来源。
 
 设计基线：[`ai-file-sorter.html`](./ai-file-sorter.html)
 

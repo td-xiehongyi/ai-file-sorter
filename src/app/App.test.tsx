@@ -78,9 +78,58 @@ describe("App", () => {
 
   it("offers native directory selection and phase two index status", () => {
     render(<App />);
+    expect(screen.getByRole("main", { name: "ai-file-sorter" })).toHaveAttribute("data-ui-theme", "light");
+    expect(screen.getAllByText("ai-file-sorter")).not.toHaveLength(0);
+    expect(screen.queryByText("AI File Organizer")).not.toBeInTheDocument();
+    expect(screen.queryByText("阶段五开发版")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "选择扫描目录" })).toBeInTheDocument();
     expect(screen.getByText("等待扫描")).toBeInTheDocument();
-    expect(screen.getByText("阶段五开发版")).toBeInTheDocument();
+  });
+
+  it("renders the prototype workspace shell and marks the file view active", () => {
+    render(<App />);
+
+    expect(screen.getByRole("navigation", { name: "工作区" })).toBeInTheDocument();
+    for (const label of ["文件浏览", "AI 建议审查", "操作预览", "历史与撤销", "模型与分类设置"]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("button", { name: "文件浏览" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("main", { name: "ai-file-sorter" })).toHaveAttribute("data-active-view", "files");
+    expect(screen.getByRole("status")).toHaveTextContent("本地 AI 状态");
+    expect(screen.getByRole("banner")).toHaveTextContent("授权目录");
+  });
+
+  it("updates the active navigation view without changing the business controller", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "模型与分类设置" }));
+
+    expect(screen.getByRole("button", { name: "模型与分类设置" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "文件浏览" })).not.toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("main", { name: "ai-file-sorter" })).toHaveAttribute("data-active-view", "settings");
+  });
+
+  it("opens template settings from the workspace navigation after authorization", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "选择扫描目录" }));
+    await waitFor(() => expect(screen.getByText("C:/Documents")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "模型与分类设置" }));
+    expect(await screen.findByRole("heading", { name: "分类模板" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "应用模板" })).not.toBeInTheDocument();
+  });
+
+  it("keeps navigation and directory actions keyboard-focusable", () => {
+    render(<App />);
+
+    const navigation = screen.getByRole("button", { name: "文件浏览" });
+    navigation.focus();
+    expect(document.activeElement).toBe(navigation);
+
+    const chooseDirectory = screen.getByRole("button", { name: "选择扫描目录" });
+    chooseDirectory.focus();
+    expect(document.activeElement).toBe(chooseDirectory);
+    expect(chooseDirectory).not.toBeDisabled();
   });
 
   it("shows the local AI suggestion panel after a directory is authorized", async () => {
@@ -116,7 +165,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "选择扫描目录" }));
     await waitFor(() => expect(screen.getByText("C:/Documents")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "选择扫描目录" }));
+    fireEvent.click(screen.getByRole("button", { name: "选择其他目录" }));
     await waitFor(() => expect(screen.getByText("D:/Archive")).toBeInTheDocument());
     expect(api.chooseDirectory).toHaveBeenCalledTimes(2);
     expect(api.scanDirectory).toHaveBeenCalledTimes(2);

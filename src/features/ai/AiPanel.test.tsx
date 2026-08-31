@@ -72,6 +72,27 @@ it("analyzes only supported selected files and displays completed suggestions", 
   progressListener?.({ batch_id: "analysis-1", phase: "completed", completed_files: 1, total_files: 1, current_path: null, error_count: 0 });
   expect(await screen.findByText("会议纪要")).toBeInTheDocument();
   expect(screen.getByText("项目 · 会议")).toBeInTheDocument();
+  expect(screen.getByText("置信度 90%")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "接受建议" })).toBeInTheDocument();
+});
+
+it("renders the dedicated template settings view without an apply action", async () => {
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} activeView="settings" onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
+
+  expect(screen.getByRole("heading", { name: "分类模板" })).toBeInTheDocument();
+  expect(await screen.findByText("模板库")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "新建模板" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "应用模板" })).not.toBeInTheDocument();
+});
+
+it("keeps the category selector and analysis action accessible", async () => {
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
+
+  await screen.findByText("模型已就绪");
+  const selector = screen.getByLabelText("分类方案");
+  selector.focus();
+  expect(document.activeElement).toBe(selector);
+  expect(screen.getByRole("button", { name: "分析所选文件（1）" })).not.toBeDisabled();
 });
 
 it("submits the selected saved template as the analysis category source", async () => {
