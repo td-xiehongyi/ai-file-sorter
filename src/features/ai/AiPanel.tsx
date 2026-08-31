@@ -21,6 +21,7 @@ import {
 import type { AiAnalysisResult, AiCategory, AiCategoryTemplate, AnalysisCategorySource, AnalysisProgress, AnalysisTask, ProviderStatus, TemplateCategory } from "../../types/ai";
 import type { OperationDraft, OperationPreviewResponse } from "../../types/operations";
 import type { SearchEntry } from "../../types/search";
+import { AnalysisSetupBar } from "./AnalysisSetupBar";
 import { AiReviewView } from "./AiReviewView";
 import { TemplateSettingsView } from "./TemplateSettingsView";
 
@@ -29,7 +30,8 @@ type Props = {
   selectedEntries: SearchEntry[];
   onPreview: (draft: OperationDraft) => Promise<OperationPreviewResponse>;
   onChooseDirectory: () => Promise<string | null>;
-  activeView?: "ai" | "settings";
+  activeView?: "files" | "ai" | "preview" | "history" | "settings";
+  onNavigate?: (view: "files" | "ai" | "preview" | "history" | "settings") => void;
 };
 
 const supportedExtensions = new Set([
@@ -65,7 +67,7 @@ function isSupportedEntry(entry: SearchEntry): boolean {
     || supportedExtensions.has((entry.extension ?? "").toLowerCase());
 }
 
-export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai" }: Props) {
+export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai", onNavigate }: Props) {
   const [model, setModel] = useState("qwen2.5:7b");
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
   const [categories, setCategories] = useState<AiCategory[]>([]);
@@ -84,6 +86,8 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
   const [configOpen, setConfigOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setupLoading, setSetupLoading] = useState(true);
+  const [settingsReturnView, setSettingsReturnView] = useState<"files" | "ai">("ai");
+  const [settingsOpenedFromAction, setSettingsOpenedFromAction] = useState(false);
   const supportedFiles = useMemo(
     () => selectedEntries.filter(isSupportedEntry),
     [selectedEntries],
@@ -165,6 +169,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
               filename: item.suggested_filename,
               categoryId: item.category_id ?? "",
             }])));
+            onNavigate?.("ai");
           })
           .catch((cause) => setError(messageOf(cause, "无法读取 AI 分析结果。")));
       } else if (next.phase === "failed" || next.phase === "cancelled") {
@@ -502,7 +507,20 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     }));
   }
 
-  const settingsViewOpen = activeView === "settings" || configOpen;
+  function openSettings() {
+    if (activeView === "files" || activeView === "ai") setSettingsReturnView(activeView);
+    setSettingsOpenedFromAction(true);
+    setConfigOpen(true);
+    onNavigate?.("settings");
+  }
+
+  function closeSettings() {
+    setConfigOpen(false);
+    setSettingsOpenedFromAction(false);
+    onNavigate?.(settingsReturnView);
+  }
+
+  const settingsViewOpen = activeView === "settings" || (configOpen && !onNavigate);
   if (settingsViewOpen) {
     return <TemplateSettingsView
       categories={categories}
@@ -511,8 +529,8 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
       templateDraft={templateDraft}
       templateDirty={templateDirty}
       error={error}
-      showClose={activeView !== "settings"}
-      onClose={() => setConfigOpen(false)}
+      showClose={settingsOpenedFromAction || (!onNavigate && activeView !== "settings")}
+      onClose={closeSettings}
       onNewTemplate={newTemplate}
       onSelectTemplate={selectTemplate}
       onRenameTemplate={(template) => void renameTemplate(template)}
@@ -539,6 +557,27 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     />;
   }
 
+  if (activeView === "files") {
+    return <AnalysisSetupBar
+      selectedEntries={selectedEntries}
+      supportedFiles={supportedFiles}
+      templates={templates}
+      analysisSource={analysisSource}
+      onChooseAnalysisSource={chooseAnalysisSource}
+      onOpenSettings={openSettings}
+      analysisBlockedReason={analysisBlockedReason}
+      busy={busy}
+      batchId={batchId}
+      cancelRequested={cancelRequested}
+      onStart={() => void start()}
+      onCancel={() => void cancel()}
+      progress={progress}
+      showConfigureAction={provider?.available === true && !hasEnabledCategory}
+    />;
+  }
+
+  if (activeView !== "ai") return null;
+
   return <AiReviewView
     selectedEntries={selectedEntries}
     supportedFiles={supportedFiles}
@@ -549,8 +588,8 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, activeView = "ai
     templates={templates}
     analysisSource={analysisSource}
     onChooseAnalysisSource={chooseAnalysisSource}
-    onOpenSettings={() => setConfigOpen(true)}
-    hasEnabledCategory={hasEnabledCategory}
+    onOpenSettings={openSettings}
+    showConfigureAction={provider?.available === true && !hasEnabledCategory}
     analysisBlockedReason={analysisBlockedReason}
     busy={busy}
     batchId={batchId}

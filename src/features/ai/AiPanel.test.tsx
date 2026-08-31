@@ -76,6 +76,19 @@ it("analyzes only supported selected files and displays completed suggestions", 
   expect(screen.getByRole("button", { name: "接受建议" })).toBeInTheDocument();
 });
 
+it("notifies the workspace when analysis results become available", async () => {
+  const onNavigate = vi.fn();
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} onNavigate={onNavigate} />);
+
+  await screen.findByText("模型已就绪");
+  fireEvent.click(screen.getByRole("button", { name: "分析所选文件（1）" }));
+  await waitFor(() => expect(progressListener).toBeDefined());
+  progressListener?.({ batch_id: "analysis-1", phase: "completed", completed_files: 1, total_files: 1, current_path: null, error_count: 0 });
+
+  await screen.findByText("会议纪要");
+  expect(onNavigate).toHaveBeenCalledWith("ai");
+});
+
 it("renders the dedicated template settings view without an apply action", async () => {
   render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} activeView="settings" onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import type { WorkspaceView } from "../../app/WorkspaceShell";
 import { chooseDirectory, chooseTargetDirectory, getIndexStatus, listenForScanProgress, rebuildIndex, restoreRecentIndex, scanDirectory } from "../../lib/files-api";
 import { cancelOperationPlan, executeOperationPlan, getOperationHistory, previewOperations, undoOperation } from "../../lib/operations-api";
 import { listenForIndexChanges, listenForWatcherErrors } from "../../lib/search-api";
@@ -11,12 +12,10 @@ import { ScanSummary as ScanSummaryView } from "./ScanSummary";
 import { useFiles } from "./useFiles";
 import { OperationHistory } from "../operations/OperationHistory";
 import { OperationPanel } from "../operations/OperationPanel";
-import { OperationPreview } from "../operations/OperationPreview";
+import { OperationPreviewView, OperationPreviewEmptyView } from "../operations/OperationPreviewView";
 import { AiPanel } from "../ai/AiPanel";
 
-type WorkspaceView = "files" | "ai" | "preview" | "history" | "settings";
-
-export function FilesFeature({ activeView = "files" }: { activeView?: WorkspaceView }) {
+export function FilesFeature({ activeView = "files", onNavigate = () => undefined }: { activeView?: WorkspaceView; onNavigate?: (view: WorkspaceView) => void }) {
   const [rootPath, setRootPath] = useState<string | null>(null);
   const [status, setStatus] = useState<IndexStatus | null>(null);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
@@ -151,6 +150,7 @@ export function FilesFeature({ activeView = "files" }: { activeView?: WorkspaceV
     try {
       const preview = await previewOperations(draft);
       setOperationPreview(preview);
+      onNavigate("preview");
       return preview;
     } catch (cause) {
       setOperationError(cause instanceof Error ? cause.message : "无法生成操作预览。");
@@ -169,6 +169,7 @@ export function FilesFeature({ activeView = "files" }: { activeView?: WorkspaceV
       }
     }
     setOperationPreview(null);
+    onNavigate("ai");
   }
 
   async function handleExecute(planId: string) {
@@ -211,27 +212,35 @@ export function FilesFeature({ activeView = "files" }: { activeView?: WorkspaceV
     <section className="relative z-10 mx-auto w-full max-w-6xl px-6 py-10 sm:px-10 lg:px-14">
       <div className="mt-6 space-y-4">
         {error && <div role="alert" className="system-feedback is-error">{error}</div>}
-        <ScanProgressView progress={progress} />
-        {summary && <ScanSummaryView summary={summary} />}
         {operationError && <div role="alert" className="system-feedback is-error">{operationError}</div>}
-        {activeView !== "ai" && activeView !== "settings" && <FileBrowserView
-          state={browserState}
-          rootPath={rootPath}
-          status={status}
-          busy={busy}
-          changeNotice={changeNotice}
-          watcherError={watcherError}
-          selectedPaths={selectedPaths}
-          onToggleSelection={toggleSelection}
-          onChooseDirectory={() => void chooseAndScan()}
-          onRescan={() => void rescanCurrentDirectory()}
-          onRebuild={() => void rebuildCurrentIndex()}
-        />}
-        {rootPath && <AiPanel activeView={activeView === "settings" ? "settings" : "ai"} rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} onChooseDirectory={chooseTargetDirectory} />}
-        {activeView !== "settings" && rootPath && <OperationPanel rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} busy={operationBusy} onChooseTargetDirectory={chooseTargetDirectory} />}
-        {operationPreview && <OperationPreview preview={operationPreview} onConfirm={(planId) => void handleExecute(planId)} onCancel={() => void handleCancelPreview()} busy={operationBusy} />}
-        {operationResult && <div role="status" className="system-feedback is-success">批次完成：{operationResult.items.filter((item) => item.status === "succeeded").length} 项成功，{operationResult.items.filter((item) => item.status === "failed").length} 项失败，{operationResult.items.filter((item) => item.status === "not_executed").length} 项未执行。</div>}
-        {activeView !== "settings" && rootPath && <OperationHistory items={history} onUndo={(historyId) => void handleUndo(historyId)} busy={operationBusy} />}
+        {activeView === "files" && <>
+          <ScanProgressView progress={progress} />
+          {summary && <ScanSummaryView summary={summary} />}
+          <FileBrowserView
+            state={browserState}
+            rootPath={rootPath}
+            status={status}
+            busy={busy}
+            changeNotice={changeNotice}
+            watcherError={watcherError}
+            selectedPaths={selectedPaths}
+            onToggleSelection={toggleSelection}
+            onChooseDirectory={() => void chooseAndScan()}
+            onRescan={() => void rescanCurrentDirectory()}
+            onRebuild={() => void rebuildCurrentIndex()}
+          />
+        </>}
+        {activeView === "preview" && (operationPreview
+          ? <OperationPreviewView preview={operationPreview} onConfirm={(planId) => void handleExecute(planId)} onCancel={() => void handleCancelPreview()} busy={operationBusy} />
+          : <OperationPreviewEmptyView onNavigate={() => onNavigate("ai")} />)}
+        {activeView === "history" && <OperationHistory items={history} onUndo={(historyId) => void handleUndo(historyId)} busy={operationBusy} />}
+        <div className="workspace-ai-view">
+          {rootPath && <AiPanel activeView={activeView} rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} onChooseDirectory={chooseTargetDirectory} onNavigate={onNavigate} />}
+          {!rootPath && activeView === "ai" && <section className="workspace-empty-view"><h2>请先选择目录</h2><p>进入文件浏览页授权目录后，才能开始 AI 分析。</p></section>}
+          {!rootPath && activeView === "settings" && <section className="workspace-empty-view"><h2>请先选择目录</h2><p>模板和当前目录分类设置需要先授权一个目录。</p></section>}
+        </div>
+        {activeView === "files" && rootPath && <OperationPanel rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} busy={operationBusy} onChooseTargetDirectory={chooseTargetDirectory} />}
+        {activeView === "files" && operationResult && <div role="status" className="system-feedback is-success">批次完成：{operationResult.items.filter((item) => item.status === "succeeded").length} 项成功，{operationResult.items.filter((item) => item.status === "failed").length} 项失败，{operationResult.items.filter((item) => item.status === "not_executed").length} 项未执行。</div>}
       </div>
     </section>
   );

@@ -221,6 +221,35 @@ body {
   flex: 1;
 }
 
+.workspace-ai-view {
+  display: contents;
+}
+
+.analysis-setup-view {
+  display: grid;
+  gap: 10px;
+}
+
+.workspace-empty-view {
+  display: grid;
+  gap: 8px;
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 15px;
+  background: var(--color-surface);
+}
+
+.workspace-empty-view h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.workspace-empty-view p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
 .file-browser-view {
   display: grid;
   gap: 16px;

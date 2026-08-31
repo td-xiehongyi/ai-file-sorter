@@ -1,5 +1,20 @@
 import type { OperationPreviewResponse } from "../../types/operations";
 
+export function OperationPreviewEmptyView({ onNavigate }: { onNavigate: () => void }) {
+  return (
+    <section aria-label="操作预览" className="operation-preview-view operation-preview-empty">
+      <div className="operation-view-heading">
+        <div>
+          <span className="eyebrow">操作预览</span>
+          <h2>没有待确认的操作计划</h2>
+          <p>接受 AI 建议或提交手动操作后，计划会显示在这里。</p>
+        </div>
+      </div>
+      <button type="button" onClick={onNavigate} className="prototype-button">返回 AI 建议审查</button>
+    </section>
+  );
+}
+
 export function OperationPreviewView({
   preview,
   onConfirm,

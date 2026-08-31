@@ -109,6 +109,33 @@ describe("App", () => {
     expect(screen.getByRole("main", { name: "ai-file-sorter" })).toHaveAttribute("data-active-view", "settings");
   });
 
+  it("renders exactly one workspace view at a time", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "选择扫描目录" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "文件浏览" })).toBeInTheDocument());
+
+    expect(screen.queryByRole("heading", { name: "本地内容分析与整理建议" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "操作历史与撤销" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "分类模板" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 建议审查" }));
+    expect(await screen.findByRole("heading", { name: "本地内容分析与整理建议" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "文件浏览" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "分类模板" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "操作预览" }));
+    expect(await screen.findByRole("heading", { name: "没有待确认的操作计划" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "本地内容分析与整理建议" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "历史与撤销" }));
+    expect(await screen.findByRole("heading", { name: "操作历史与撤销" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "没有待确认的操作计划" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "模型与分类设置" }));
+    expect(await screen.findByRole("heading", { name: "分类模板" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "操作历史与撤销" })).not.toBeInTheDocument();
+  });
+
   it("opens template settings from the workspace navigation after authorization", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "选择扫描目录" }));
@@ -135,6 +162,7 @@ describe("App", () => {
   it("shows the local AI suggestion panel after a directory is authorized", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "选择扫描目录" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI 建议审查" }));
     expect(await screen.findByRole("heading", { name: "本地内容分析与整理建议" })).toBeInTheDocument();
     expect(await screen.findByText("模型已就绪")).toBeInTheDocument();
   });

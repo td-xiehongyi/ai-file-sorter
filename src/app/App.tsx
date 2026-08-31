@@ -14,7 +14,7 @@ export function App() {
         rootPath={null}
         providerLabel="本地 AI 状态"
       >
-        <FilesFeature activeView={activeView} />
+        <FilesFeature activeView={activeView} onNavigate={setActiveView} />
       </WorkspaceShell>
     </main>
   );
