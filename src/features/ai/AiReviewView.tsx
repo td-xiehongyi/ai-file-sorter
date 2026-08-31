@@ -97,6 +97,13 @@ export function AiReviewView({
         showConfigureAction={showConfigureAction}
       />
 
+      {progress?.phase === "completed" && results.length === 0 && <div role="alert" className="ai-feedback is-warning ai-analysis-summary">
+        本次分析未生成可审查结果。{progress.error_count > 0 ? `${progress.error_count} 个文件分析失败。` : "请检查文件内容和模型响应。"}请确认模型状态后重试。
+      </div>}
+      {progress?.phase === "completed" && results.length > 0 && progress.error_count > 0 && <div role="status" className="ai-feedback is-warning ai-analysis-summary">
+        分析完成，已生成 {results.length} 条可审查建议；另有 {progress.error_count} 个文件分析失败。
+      </div>}
+
       <div className="ai-settings-row">
         <label className="prototype-field-label">模型<input aria-label="模型" value={model} onChange={(event) => setModel(event.target.value)} className="prototype-field" /></label>
         <div className="ai-provider-status"><span className={provider?.available ? "is-ready" : "is-warning"}>{provider?.message ?? "正在检查 Ollama…"}</span><button type="button" onClick={onRefreshProvider} className="prototype-button">刷新</button></div>

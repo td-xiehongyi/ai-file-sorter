@@ -190,6 +190,19 @@ it("keeps a suggestion pending when phase four preview fails", async () => {
   expect(screen.getByRole("button", { name: "接受建议" })).toBeInTheDocument();
 });
 
+it("explains when a completed analysis has no reviewable results", async () => {
+  aiApi.getAnalysisResults.mockResolvedValue([]);
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
+
+  await screen.findByText("模型已就绪");
+  fireEvent.click(screen.getByRole("button", { name: "分析所选文件（1）" }));
+  await waitFor(() => expect(progressListener).toBeDefined());
+  progressListener?.({ batch_id: "analysis-1", phase: "completed", completed_files: 2, total_files: 2, current_path: null, error_count: 2 });
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("本次分析未生成可审查结果");
+  expect(screen.getByRole("alert")).toHaveTextContent("2 个文件分析失败");
+});
+
 it("waits for every result decision before creating one combined preview", async () => {
   const onPreview = vi.fn().mockResolvedValue({ canConfirm: true, planId: "plan-batch", expiresAt: "1", items: [] });
   aiApi.getAnalysisResults.mockResolvedValue([

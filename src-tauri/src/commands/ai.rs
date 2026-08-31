@@ -735,10 +735,11 @@ fn validate_applied_categories(
             template_category.name.trim().into()
         };
         category.description = template_category.description.clone();
-        category.directory_path = path_policy::category_directory(root, &category.id)
-            .map_err(AppError::from)?
-            .to_string_lossy()
-            .into();
+        category.directory_path =
+            path_policy::category_directory_for_category(root, &category.id, &category.name)
+                .map_err(AppError::from)?
+                .to_string_lossy()
+                .into();
         validated.push(category);
     }
     if seen.len() != expected.len() {

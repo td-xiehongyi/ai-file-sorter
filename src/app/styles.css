@@ -659,6 +659,10 @@ body {
   font-size: 13px;
 }
 
+.ai-analysis-summary {
+  line-height: 1.6;
+}
+
 .ai-results {
   display: grid;
   gap: 10px;
@@ -969,9 +973,9 @@ body {
 
 .path-display-value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  white-space: normal;
 }
 
 .path-copy-button {

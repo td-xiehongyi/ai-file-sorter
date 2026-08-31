@@ -397,6 +397,63 @@ fn accepting_a_generated_category_with_a_safe_name_targets_the_name_directory() 
 }
 
 #[test]
+fn accepting_a_regular_category_id_uses_the_display_name_directory() {
+    let root = temp_root("regular-category-name");
+    let source = root.join("notes.md");
+    fs::write(&source, "正文").unwrap();
+    let mut connection = database::open_memory_database().unwrap();
+    let record = AiAnalysisRecord {
+        id: "result-regular-name".into(),
+        batch_id: "batch-regular-name".into(),
+        root_path: root.to_string_lossy().into(),
+        source_path: source.to_string_lossy().into(),
+        content_fingerprint: fingerprint_file(&source).unwrap(),
+        provider: "ollama".into(),
+        model: "qwen2.5:7b".into(),
+        prompt_version: "phase5-v1".into(),
+        template_id: None,
+        template_version: None,
+        summary: "代码资料".into(),
+        keywords: vec!["代码".into()],
+        suggested_filename: "代码资料.md".into(),
+        category_id: Some("c".into()),
+        confidence: 0.9,
+        reason: "代码资料".into(),
+        status: AnalysisResultStatus::Pending,
+        created_at: "1".into(),
+    };
+    ai_repository::replace_categories(
+        &mut connection,
+        &root.to_string_lossy(),
+        &[Category {
+            id: "c".into(),
+            name: "code".into(),
+            description: "代码资料".into(),
+            directory_path: root.join("c").to_string_lossy().into(),
+            enabled: true,
+        }],
+    )
+    .unwrap();
+    ai_repository::insert_analysis_result(&connection, &record).unwrap();
+
+    let draft = review_result(
+        &connection,
+        &record.id,
+        ReviewAction::Accept,
+        None,
+        Some("c".into()),
+    )
+    .unwrap()
+    .unwrap();
+
+    assert!(matches!(
+        &draft.items[0],
+        OperationDraftItem::AiOrganize { category_id, .. } if category_id == "code"
+    ));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn template_result_review_uses_the_frozen_categories_without_root_configuration() {
     let root = temp_root("template-snapshot");
     let source = root.join("invoice.md");

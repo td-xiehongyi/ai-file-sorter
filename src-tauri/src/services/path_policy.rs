@@ -38,7 +38,7 @@ pub fn category_directory(root: &Path, category_id: &str) -> Result<PathBuf, Str
 pub fn category_directory_tag(category_id: &str, display_name: &str) -> Result<String, String> {
     validate_category_id(category_id)?;
     let name = display_name.trim();
-    if is_generated_category_id(category_id) && validate_category_id(name).is_ok() {
+    if validate_category_id(name).is_ok() {
         return Ok(name.to_string());
     }
     Ok(category_id.to_string())
@@ -51,12 +51,6 @@ pub fn category_directory_for_category(
 ) -> Result<PathBuf, String> {
     let tag = category_directory_tag(category_id, display_name)?;
     category_directory(root, &tag)
-}
-
-fn is_generated_category_id(id: &str) -> bool {
-    id.strip_prefix("category_").is_some_and(|suffix| {
-        !suffix.is_empty() && suffix.chars().all(|character| character.is_ascii_digit())
-    })
 }
 
 pub fn is_ignored_name(name: &str, is_dir: bool) -> bool {
@@ -84,6 +78,10 @@ mod tests {
         assert_eq!(
             category_directory_for_category(Path::new("C:/Docs"), "category_2", "study").unwrap(),
             Path::new("C:/Docs/study")
+        );
+        assert_eq!(
+            category_directory_for_category(Path::new("C:/Docs"), "c", "code").unwrap(),
+            Path::new("C:/Docs/code")
         );
     }
 }
