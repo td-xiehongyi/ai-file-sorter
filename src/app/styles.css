@@ -1114,6 +1114,79 @@ body {
   flex: 1;
 }
 
+.operation-rename-list {
+  display: grid;
+  gap: 8px;
+}
+
+.operation-rename-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 1.2fr) minmax(84px, auto);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #ebe6dc;
+  border-radius: 11px;
+  background: #fffefa;
+}
+
+.operation-rename-row.has-error {
+  border-color: #d9aaa1;
+  background: #fff8f6;
+}
+
+.operation-rename-source,
+.operation-rename-input {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.operation-rename-source strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.operation-rename-label {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.operation-rename-input-control {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.operation-rename-input-control .prototype-field {
+  min-width: 0;
+  flex: 1;
+}
+
+.operation-rename-extension {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+
+.operation-rename-unchanged,
+.operation-rename-error {
+  font-size: 11px;
+}
+
+.operation-rename-unchanged {
+  color: var(--color-muted);
+}
+
+.operation-rename-error {
+  color: #986158;
+}
+
 .file-browser-card {
   display: grid;
   gap: 14px;
@@ -1511,5 +1584,9 @@ select:disabled {
   .template-category-row details,
   .directory-category-row details {
     grid-column: auto;
+  }
+
+  .operation-rename-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

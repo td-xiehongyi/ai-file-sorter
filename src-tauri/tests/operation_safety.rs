@@ -106,6 +106,36 @@ fn validator_rejects_directories_and_invalid_names() {
 }
 
 #[test]
+fn validator_rejects_duplicate_targets_in_a_batch_rename() {
+    let root = temp_root("duplicate-rename-target");
+    let first = root.join("first.txt");
+    let second = root.join("second.txt");
+    fs::write(&first, "first").unwrap();
+    fs::write(&second, "second").unwrap();
+
+    let preview = validate_draft(&OperationDraft {
+        root_path: root.to_string_lossy().into(),
+        items: vec![
+            OperationDraftItem::Rename {
+                source_path: first.to_string_lossy().into(),
+                new_name: "same.txt".into(),
+            },
+            OperationDraftItem::Rename {
+                source_path: second.to_string_lossy().into(),
+                new_name: "SAME.txt".into(),
+            },
+        ],
+    })
+    .unwrap();
+
+    assert!(!preview.can_confirm);
+    assert!(preview.items.iter().all(|item| item.reason.is_some()));
+    assert!(first.exists());
+    assert!(second.exists());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn validator_rejects_a_file_symlink_even_when_its_target_stays_inside_root() {
     let root = temp_root("symlink-source");
     let actual = root.join("actual.txt");

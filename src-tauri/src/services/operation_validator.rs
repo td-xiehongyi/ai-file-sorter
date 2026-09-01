@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -18,6 +19,23 @@ pub fn validate_draft(draft: &OperationDraft) -> Result<OperationPreview, String
     let mut items = Vec::with_capacity(draft.items.len());
     for (index, item) in draft.items.iter().enumerate() {
         items.push(validate_item(&root, index, item));
+    }
+    let mut targets = HashMap::<PathBuf, Vec<usize>>::new();
+    for item in &items {
+        targets
+            .entry(comparable_path(&item.target_path))
+            .or_default()
+            .push(item.index);
+    }
+    for indices in targets.values().filter(|indices| indices.len() > 1) {
+        for index in indices {
+            if let Some(item) = items.get_mut(*index)
+                && item.status == OperationValidationStatus::Valid
+            {
+                item.status = OperationValidationStatus::Invalid;
+                item.reason = Some("批量操作生成了重复的目标路径。".into());
+            }
+        }
     }
     let can_confirm = items
         .iter()

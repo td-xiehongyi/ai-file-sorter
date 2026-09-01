@@ -24,3 +24,35 @@ it("builds a batch move draft from selected files", () => {
     ],
   });
 });
+
+it("builds individual rename items for multiple files while preserving extensions", () => {
+  const onPreview = vi.fn();
+  render(<OperationPanel rootPath="C:/Docs" selectedEntries={entries} onPreview={onPreview} busy={false} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "批量重命名" }));
+  fireEvent.change(screen.getByLabelText("新文件名 one.txt"), { target: { value: "项目报告" } });
+  fireEvent.change(screen.getByLabelText("新文件名 two.txt"), { target: { value: "会议记录" } });
+  fireEvent.click(screen.getByRole("button", { name: "生成预览" }));
+
+  expect(onPreview).toHaveBeenCalledWith({
+    root_path: "C:/Docs",
+    items: [
+      { operation: "rename", source_path: "C:/Docs/one.txt", new_name: "项目报告.txt" },
+      { operation: "rename", source_path: "C:/Docs/two.txt", new_name: "会议记录.txt" },
+    ],
+  });
+});
+
+it("skips files whose locked-extension names remain unchanged", () => {
+  const onPreview = vi.fn();
+  render(<OperationPanel rootPath="C:/Docs" selectedEntries={entries} onPreview={onPreview} busy={false} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "批量重命名" }));
+  fireEvent.change(screen.getByLabelText("新文件名 one.txt"), { target: { value: "renamed" } });
+  fireEvent.click(screen.getByRole("button", { name: "生成预览" }));
+
+  expect(onPreview).toHaveBeenCalledWith({
+    root_path: "C:/Docs",
+    items: [{ operation: "rename", source_path: "C:/Docs/one.txt", new_name: "renamed.txt" }],
+  });
+});
