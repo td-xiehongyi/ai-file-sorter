@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { WorkspaceView } from "../../app/WorkspaceShell";
 import { chooseDirectory, chooseTargetDirectory, getIndexStatus, listenForScanProgress, rebuildIndex, restoreRecentIndex, scanDirectory } from "../../lib/files-api";
-import { cancelOperationPlan, executeOperationPlan, getOperationHistory, previewOperations, undoOperation } from "../../lib/operations-api";
+import { cancelOperationPlan, deleteOperationHistory, executeOperationPlan, getOperationHistory, previewOperations, purgeOperationHistory, restoreOperationHistory, undoOperation } from "../../lib/operations-api";
 import { listenForIndexChanges, listenForWatcherErrors } from "../../lib/search-api";
 import type { IndexStatus, ScanProgress, ScanSummary } from "../../types/files";
 import type { OperationBatchResult, OperationDraft, OperationHistoryItem, OperationPreviewResponse } from "../../types/operations";
@@ -30,6 +30,7 @@ export function FilesFeature({ activeView = "files", onNavigate = () => undefine
   const [operationError, setOperationError] = useState<string | null>(null);
   const [operationResult, setOperationResult] = useState<OperationBatchResult | null>(null);
   const [history, setHistory] = useState<OperationHistoryItem[]>([]);
+  const [includeDeletedHistory, setIncludeDeletedHistory] = useState(false);
   const browserState = useFiles(rootPath);
   const selectedEntries = useMemo(
     () => browserState.result?.entries.filter((entry) => selectedPaths.has(entry.normalized_path) && entry.kind === "file") ?? [],
@@ -81,7 +82,7 @@ export function FilesFeature({ activeView = "files", onNavigate = () => undefine
       return;
     }
     void refreshHistory();
-  }, [rootPath]);
+  }, [rootPath, includeDeletedHistory]);
 
   function showError(cause: unknown) {
     setError(cause instanceof Error ? cause.message : "扫描失败，请检查目录权限后重试。");
@@ -189,7 +190,7 @@ export function FilesFeature({ activeView = "files", onNavigate = () => undefine
 
   async function refreshHistory() {
     try {
-      setHistory(await getOperationHistory());
+      setHistory(await getOperationHistory(50, 0, includeDeletedHistory));
     } catch (cause) {
       setOperationError(cause instanceof Error ? cause.message : "无法读取操作历史。");
     }
@@ -203,6 +204,47 @@ export function FilesFeature({ activeView = "files", onNavigate = () => undefine
       await Promise.all([browserState.reload(), refreshHistory()]);
     } catch (cause) {
       setOperationError(cause instanceof Error ? cause.message : "撤销失败。");
+    } finally {
+      setOperationBusy(false);
+    }
+  }
+
+  async function handleDeleteHistory(historyId: number) {
+    if (!window.confirm("删除这条历史记录？实际文件不会受到影响。")) return;
+    setOperationError(null);
+    setOperationBusy(true);
+    try {
+      await deleteOperationHistory(historyId);
+      await refreshHistory();
+    } catch (cause) {
+      setOperationError(cause instanceof Error ? cause.message : "删除历史记录失败。");
+    } finally {
+      setOperationBusy(false);
+    }
+  }
+
+  async function handleRestoreHistory(historyId: number) {
+    setOperationError(null);
+    setOperationBusy(true);
+    try {
+      await restoreOperationHistory(historyId);
+      await refreshHistory();
+    } catch (cause) {
+      setOperationError(cause instanceof Error ? cause.message : "恢复历史记录失败。");
+    } finally {
+      setOperationBusy(false);
+    }
+  }
+
+  async function handlePurgeHistory(historyId: number) {
+    if (!window.confirm("永久删除这条历史记录？此操作不可恢复，实际文件不会受到影响。")) return;
+    setOperationError(null);
+    setOperationBusy(true);
+    try {
+      await purgeOperationHistory(historyId);
+      await refreshHistory();
+    } catch (cause) {
+      setOperationError(cause instanceof Error ? cause.message : "永久删除历史记录失败。");
     } finally {
       setOperationBusy(false);
     }
@@ -233,7 +275,7 @@ export function FilesFeature({ activeView = "files", onNavigate = () => undefine
         {activeView === "preview" && (operationPreview
           ? <OperationPreviewView preview={operationPreview} onConfirm={(planId) => void handleExecute(planId)} onCancel={() => void handleCancelPreview()} busy={operationBusy} />
           : <OperationPreviewEmptyView onNavigate={() => onNavigate("ai")} />)}
-        {activeView === "history" && <OperationHistory items={history} onUndo={(historyId) => void handleUndo(historyId)} busy={operationBusy} />}
+        {activeView === "history" && <OperationHistory items={history} onUndo={(historyId) => void handleUndo(historyId)} onDelete={(historyId) => void handleDeleteHistory(historyId)} onRestore={(historyId) => void handleRestoreHistory(historyId)} onPurge={(historyId) => void handlePurgeHistory(historyId)} includeDeleted={includeDeletedHistory} onToggleDeleted={setIncludeDeletedHistory} busy={operationBusy} />}
         <div className="workspace-ai-view">
           {rootPath && <AiPanel activeView={activeView} rootPath={rootPath} selectedEntries={selectedEntries} onPreview={handlePreview} onDiscardPreview={cancelOperationPlan} onChooseDirectory={chooseTargetDirectory} onNavigate={onNavigate} />}
           {!rootPath && activeView === "ai" && <section className="workspace-empty-view"><h2>请先选择目录</h2><p>进入文件浏览页授权目录后，才能开始 AI 分析。</p></section>}

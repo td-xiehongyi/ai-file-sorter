@@ -69,6 +69,12 @@ fn migrate(connection: &Connection) -> Result<()> {
         connection.execute_batch(include_str!("migrations/006_global_category_template.sql"))?;
         connection.pragma_update(None, "user_version", 6)?;
     }
+    if version < 7 {
+        connection.execute_batch(include_str!(
+            "migrations/007_operation_history_deletion.sql"
+        ))?;
+        connection.pragma_update(None, "user_version", 7)?;
+    }
     Ok(())
 }
 
@@ -90,7 +96,7 @@ mod tests {
             .unwrap();
         assert_eq!(foreign_keys, 1);
         assert_eq!(busy_timeout, 5_000);
-        assert_eq!(user_version, 6);
+        assert_eq!(user_version, 7);
     }
 
     #[test]
@@ -145,7 +151,7 @@ mod tests {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
         assert_eq!(
             ai_repository::read_global_category_template_id(&connection).unwrap(),
             None

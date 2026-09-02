@@ -76,11 +76,16 @@ pub fn get_operation_history<R: Runtime>(
     app: AppHandle<R>,
     limit: i64,
     offset: i64,
+    include_deleted: bool,
 ) -> Result<Vec<OperationHistoryItem>, AppError> {
     let connection = open_database(&app)?;
-    let mut history =
-        operation_repository::read_history(&connection, limit.clamp(1, 100), offset.max(0))
-            .map_err(|error| error.to_string())?;
+    let mut history = operation_repository::read_history_with_deleted(
+        &connection,
+        limit.clamp(1, 100),
+        offset.max(0),
+        include_deleted,
+    )
+    .map_err(|error| error.to_string())?;
     for item in &mut history {
         update_undo_status(&connection, item)?;
     }
@@ -96,6 +101,40 @@ pub fn undo_operation<R: Runtime>(
     let result = undo_service::undo_history(&connection, history_id)?;
     let _ = app.emit("files://index-changed", ());
     Ok(result)
+}
+
+#[tauri::command]
+pub fn delete_operation_history<R: Runtime>(
+    app: AppHandle<R>,
+    history_id: i64,
+) -> Result<(), AppError> {
+    let connection = open_database(&app)?;
+    operation_repository::soft_delete_history(
+        &connection,
+        history_id,
+        &format_system_time(SystemTime::now()),
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn restore_operation_history<R: Runtime>(
+    app: AppHandle<R>,
+    history_id: i64,
+) -> Result<(), AppError> {
+    let connection = open_database(&app)?;
+    operation_repository::restore_history(&connection, history_id)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn purge_operation_history<R: Runtime>(
+    app: AppHandle<R>,
+    history_id: i64,
+) -> Result<(), AppError> {
+    let connection = open_database(&app)?;
+    operation_repository::purge_history(&connection, history_id)?;
+    Ok(())
 }
 
 fn response_from_preview(

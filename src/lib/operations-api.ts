@@ -45,6 +45,7 @@ type HistoryWire = {
   created_at: string;
   undo_status: "available" | "unavailable" | "undone";
   undo_reason: string | null;
+  is_deleted: boolean;
 };
 
 export async function previewOperations(draft: OperationDraft): Promise<OperationPreviewResponse> {
@@ -74,8 +75,8 @@ export async function executeOperationPlan(planId: string): Promise<OperationBat
   return { batchId: response.batch_id, items: mapResultItems(response.items) };
 }
 
-export async function getOperationHistory(limit = 50, offset = 0): Promise<OperationHistoryItem[]> {
-  const response = await invoke<HistoryWire[]>("get_operation_history", { limit, offset });
+export async function getOperationHistory(limit = 50, offset = 0, includeDeleted = false): Promise<OperationHistoryItem[]> {
+  const response = await invoke<HistoryWire[]>("get_operation_history", { limit, offset, includeDeleted });
   return response.map((item) => ({
     id: item.id,
     batchId: item.batch_id,
@@ -88,12 +89,25 @@ export async function getOperationHistory(limit = 50, offset = 0): Promise<Opera
     createdAt: item.created_at,
     undoStatus: item.undo_status,
     undoReason: item.undo_reason,
+    isDeleted: item.is_deleted,
   }));
 }
 
 export async function undoOperation(historyId: number): Promise<OperationResultItem> {
   const response = await invoke<ResultWire>("undo_operation", { historyId });
   return mapResultItem(response);
+}
+
+export function deleteOperationHistory(historyId: number): Promise<void> {
+  return invoke("delete_operation_history", { historyId });
+}
+
+export function restoreOperationHistory(historyId: number): Promise<void> {
+  return invoke("restore_operation_history", { historyId });
+}
+
+export function purgeOperationHistory(historyId: number): Promise<void> {
+  return invoke("purge_operation_history", { historyId });
 }
 
 function mapResultItems(items: ResultWire[]): OperationResultItem[] {

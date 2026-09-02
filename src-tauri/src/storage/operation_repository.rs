@@ -50,12 +50,29 @@ pub fn read_history(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<OperationHistoryItem>> {
-    let mut statement = connection.prepare(
-        "SELECT id, batch_id, action, operation, source_path, target_path, status, reason, created_at
+    read_history_with_deleted(connection, limit, offset, false)
+}
+
+pub fn read_history_with_deleted(
+    connection: &Connection,
+    limit: i64,
+    offset: i64,
+    include_deleted: bool,
+) -> Result<Vec<OperationHistoryItem>> {
+    let deleted_filter = if include_deleted {
+        ""
+    } else {
+        "WHERE deleted_at IS NULL"
+    };
+    let query = format!(
+        "SELECT id, batch_id, action, operation, source_path, target_path, status, reason, created_at,
+                deleted_at IS NOT NULL
          FROM operation_history
+         {deleted_filter}
          ORDER BY created_at DESC, id DESC
-         LIMIT ?1 OFFSET ?2",
-    )?;
+         LIMIT ?1 OFFSET ?2"
+    );
+    let mut statement = connection.prepare(&query)?;
     let rows = statement.query_map(params![limit, offset], |row| {
         Ok(OperationHistoryItem {
             id: row.get(0)?,
@@ -69,6 +86,7 @@ pub fn read_history(
             created_at: row.get(8)?,
             undo_status: UndoStatus::Unavailable,
             undo_reason: None,
+            is_deleted: row.get(9)?,
         })
     })?;
     rows.collect()
@@ -82,7 +100,7 @@ pub fn read_history_record(
         .query_row(
             "SELECT id, batch_id, action, operation, source_path, target_path, status, reason, created_at,
                     snapshot_kind, snapshot_size, snapshot_modified_ms, snapshot_file_identity,
-                    snapshot_volume_id, reverses_id
+                    snapshot_volume_id, reverses_id, deleted_at
              FROM operation_history WHERE id = ?1",
             params![id],
             |row| {
@@ -111,6 +129,7 @@ pub fn read_history_record(
                         created_at: row.get(8)?,
                         undo_status: UndoStatus::Unavailable,
                         undo_reason: None,
+                        is_deleted: row.get::<_, Option<String>>(15)?.is_some(),
                     },
                     snapshot,
                     row.get(14)?,
@@ -129,6 +148,85 @@ pub fn has_successful_undo(connection: &Connection, history_id: i64) -> Result<b
         params![history_id],
         |row| row.get(0),
     )
+}
+
+pub fn soft_delete_history(
+    connection: &Connection,
+    history_id: i64,
+    deleted_at: &str,
+) -> std::result::Result<(), String> {
+    let changed = connection
+        .execute(
+            "UPDATE operation_history SET deleted_at = ?1 WHERE id = ?2 OR reverses_id = ?2",
+            params![deleted_at, history_id],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed == 0 {
+        return Err("历史记录不存在。".into());
+    }
+    Ok(())
+}
+
+pub fn restore_history(
+    connection: &Connection,
+    history_id: i64,
+) -> std::result::Result<(), String> {
+    let changed = connection
+        .execute(
+            "UPDATE operation_history SET deleted_at = NULL WHERE id = ?1 OR reverses_id = ?1",
+            params![history_id],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed == 0 {
+        return Err("历史记录不存在。".into());
+    }
+    Ok(())
+}
+
+pub fn purge_history(connection: &Connection, history_id: i64) -> std::result::Result<(), String> {
+    let transaction = connection
+        .unchecked_transaction()
+        .map_err(|error| error.to_string())?;
+    let record = transaction
+        .query_row(
+            "SELECT action, status FROM operation_history WHERE id = ?1",
+            params![history_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((action, status)) = record else {
+        return Err("历史记录不存在。".into());
+    };
+    if action == "execute" && status == "succeeded" {
+        let has_undo: bool = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM operation_history WHERE reverses_id = ?1 AND action = 'undo' AND status = 'succeeded')",
+                params![history_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if !has_undo {
+            return Err("该记录仍可撤销，请先撤销后再永久删除。".into());
+        }
+    }
+    transaction
+        .execute(
+            "DELETE FROM operation_history WHERE reverses_id = ?1",
+            params![history_id],
+        )
+        .map_err(|error| error.to_string())?;
+    let changed = transaction
+        .execute(
+            "DELETE FROM operation_history WHERE id = ?1",
+            params![history_id],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed == 0 {
+        return Err("历史记录不存在。".into());
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn action_name(action: &HistoryAction) -> &'static str {

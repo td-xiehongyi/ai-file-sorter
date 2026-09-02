@@ -63,6 +63,7 @@ pub fn undo_history(
         created_at: now_string(),
         undo_status: UndoStatus::Unavailable,
         undo_reason: None,
+        is_deleted: false,
     };
     let undo_id = operation_repository::insert_history(
         connection,

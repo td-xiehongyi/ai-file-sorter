@@ -23,6 +23,7 @@ fn index_reset_keeps_persisted_operation_history() {
         created_at: "100".into(),
         undo_status: ai_file_organizer_lib::models::operation::UndoStatus::Available,
         undo_reason: None,
+        is_deleted: false,
     };
     let snapshot = FileSnapshot {
         kind: "file".into(),

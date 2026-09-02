@@ -909,9 +909,15 @@ body {
   background: var(--color-surface);
 }
 
+.operation-history-view,
+.operation-history-list,
+.operation-history-row,
+.operation-history-paths {
+  min-width: 0;
+}
+
 .operation-view-heading,
-.operation-panel-heading,
-.operation-history-heading {
+.operation-panel-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1064,6 +1070,85 @@ body {
   display: flex;
   align-items: center;
   gap: 9px;
+}
+
+.operation-history-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  align-items: start;
+  gap: 18px;
+}
+
+.operation-history-summary {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.operation-history-actions {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.operation-history-menu {
+  position: relative;
+  width: 132px;
+}
+
+.operation-history-menu > .prototype-button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.operation-history-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 132px;
+  padding: 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 20px rgb(42 48 42 / 12%);
+}
+
+.operation-history-menu-item {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.operation-history-menu-item:hover,
+.operation-history-menu-item:focus-visible {
+  background: #eef2eb;
+  outline: none;
+}
+
+.operation-history-menu-item.is-danger {
+  color: #986158;
+}
+
+.operation-history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.operation-history-row.is-deleted {
+  opacity: 0.78;
+  background: #f7f5ef;
 }
 
 .operation-history-heading strong {
@@ -1562,9 +1647,12 @@ select:disabled {
   }
 
   .operation-view-heading,
-  .operation-panel-heading,
-  .operation-history-heading {
+  .operation-panel-heading {
     flex-direction: column;
+  }
+
+  .operation-history-heading {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .operation-preview-actions,
@@ -1579,6 +1667,12 @@ select:disabled {
   .operation-mode-switch .prototype-button,
   .operation-input-row .prototype-button {
     flex: 1;
+  }
+
+  .operation-history-actions {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-end;
   }
 
   .template-category-row details,

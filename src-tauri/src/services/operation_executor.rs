@@ -155,6 +155,7 @@ fn record_result(
         created_at: now_string(),
         undo_status: UndoStatus::Unavailable,
         undo_reason: None,
+        is_deleted: false,
     };
     let history_id = operation_repository::insert_history(connection, &record, snapshot, None)
         .map_err(|error| error.to_string())?;

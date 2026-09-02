@@ -53,4 +53,5 @@ export type OperationHistoryItem = {
   createdAt: string;
   undoStatus: UndoStatus;
   undoReason: string | null;
+  isDeleted: boolean;
 };

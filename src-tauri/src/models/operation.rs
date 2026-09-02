@@ -159,4 +159,5 @@ pub struct OperationHistoryItem {
     pub created_at: String,
     pub undo_status: UndoStatus,
     pub undo_reason: Option<String>,
+    pub is_deleted: bool,
 }
