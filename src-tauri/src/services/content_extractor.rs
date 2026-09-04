@@ -391,7 +391,7 @@ fn decode_utf16(bytes: &[u8], little_endian: bool) -> Result<String, String> {
     if !bytes.len().is_multiple_of(2) {
         return Err("UTF-16 文件字节数无效".into());
     }
-    let units = bytes.chunks_exact(2).map(|pair| {
+    let units = bytes.as_chunks::<2>().0.iter().map(|pair| {
         if little_endian {
             u16::from_le_bytes([pair[0], pair[1]])
         } else {
