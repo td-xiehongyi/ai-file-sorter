@@ -1,4 +1,4 @@
-# AI File Organizer 开发路线图
+# AI File Sorter 开发路线图
 
 | 属性 | 值 |
 | --- | --- |

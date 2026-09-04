@@ -1,5 +1,5 @@
 [package]
-name = "ai-file-organizer"
+name = "ai-file-sorter"
 version = "0.1.0"
 description = "A Local First desktop file organizer"
 edition = "2024"

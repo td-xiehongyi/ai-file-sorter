@@ -61,9 +61,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ env.RELEASE_TAG }}
-          releaseName: 'AI File Organizer ${{ env.RELEASE_TAG }}'
+          releaseName: 'AI File Sorter ${{ env.RELEASE_TAG }}'
           releaseBody: |
-            Windows x64 installer for AI File Organizer.
+            Windows x64 installer for AI File Sorter.
 
             Download the `-setup.exe` installer for the simplest installation.
             The MSI package is provided for managed Windows environments.

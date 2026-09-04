@@ -51,5 +51,5 @@ pub fn run() {
     app_builder(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
         .run(tauri::generate_context!())
-        .expect("error while running AI File Organizer");
+        .expect("error while running AI File Sorter");
 }

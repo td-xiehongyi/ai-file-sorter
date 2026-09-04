@@ -1,4 +1,4 @@
-# AI File Organizer 系统架构
+# AI File Sorter 系统架构
 
 | 属性 | 值 |
 | --- | --- |

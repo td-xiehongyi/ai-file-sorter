@@ -4,10 +4,7 @@ fn application_builder_assembles_the_configured_main_window() {
         .build(tauri::generate_context!())
         .expect("application should assemble with the mock runtime");
 
-    assert_eq!(
-        app.config().product_name.as_deref(),
-        Some("AI File Organizer")
-    );
+    assert_eq!(app.config().product_name.as_deref(), Some("AI File Sorter"));
     assert!(
         app.config()
             .app

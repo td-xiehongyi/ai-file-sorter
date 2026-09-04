@@ -38,7 +38,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ai-file-organizer"
+name = "ai-file-sorter"
 version = "0.1.0"
 dependencies = [
  "keyring",

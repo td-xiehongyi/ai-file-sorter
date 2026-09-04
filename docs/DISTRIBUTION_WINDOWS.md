@@ -6,7 +6,7 @@
 
 1. 打开项目 GitHub 仓库的 **Releases** 页面。
 2. 下载名称包含 `x64-setup.exe` 的文件。
-3. 双击安装包完成安装，然后从开始菜单启动 **AI File Organizer**。
+3. 双击安装包完成安装，然后从开始菜单启动 **AI File Sorter**。
 4. 首次使用时选择要扫描的目录。应用只会处理用户明确授权的目录。
 
 Windows 10/11 通常已经包含 WebView2。如果系统缺少 WebView2，Tauri 安装器会尝试下载并安装它，因此第一次安装可能需要联网。离线安装包不是当前首版目标；如果未来需要在隔离网络部署，再切换到 Tauri 的 `offlineInstaller` 配置。

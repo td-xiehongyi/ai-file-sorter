@@ -1,4 +1,4 @@
-# AI File Organizer 安全模型
+# AI File Sorter 安全模型
 
 | 属性 | 值 |
 | --- | --- |
