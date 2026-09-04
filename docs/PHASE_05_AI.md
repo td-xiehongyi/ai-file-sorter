@@ -2,7 +2,7 @@
 
 | 属性 | 值 |
 | --- | --- |
-| 状态 | 功能初版已完成自动化验证；待真实黄金集、桌面端人工流程与发布验收 |
+| 状态 | 本地与 OpenAI 兼容 API Provider 已完成自动化验证；待真实黄金集、桌面端人工流程与发布验收 |
 | 默认 Provider | 本地 Ollama |
 | 默认模型 | `qwen2.5:7b` |
 | 提示词版本 | `phase5-v1` |
@@ -13,9 +13,11 @@
 
 代码与配置格式包括 C/C++、C#、Java/Kotlin、Go、Rust、Python、JavaScript/TypeScript、PHP、Ruby、Swift、Dart、Lua、R、Shell、PowerShell、SQL、HTML/CSS 以及 JSON、YAML、TOML、XML、INI 等；常见特殊文件名包括 `Dockerfile`、`Makefile` 和 `CMakeLists.txt`。旧版二进制 `.doc` 仍不支持。
 
-原始正文只存在于 Rust 分析任务内存。SQLite 迁移 `003_ai_analysis.sql` 保存分类和派生结果，不存在正文、原始内容或分段文本字段。Ollama 适配器只接受 `http://localhost`、`127.0.0.1` 或 `::1` 环回地址，当前没有远程 Provider 或正文外发入口。
+原始正文只存在于 Rust 分析任务内存。SQLite 迁移 `003_ai_analysis.sql` 保存分类和派生结果，不存在正文、原始内容或分段文本字段。默认 Provider 是本地 Ollama；用户也可以配置一个 OpenAI 兼容 API。远程 API 只允许 HTTPS 地址，API Key 进入 Windows 系统凭据存储，SQLite 仅保存 Provider 元数据。
 
-分析前必须同时满足：本地模型可用、用户在文件列表勾选至少一个支持文件、且至少有一个已启用分类。界面会说明未满足的条件；后端也会拒绝没有启用分类的请求。
+远程分析是显式选择的能力：设置页提供“测试连接”和“保存 API 配置”，但连接测试只检查模型健康状态，不发送文件正文。每次开始远程分析前，界面会说明所选文件正文将发送到配置的 API 地址，并要求用户确认；确认值由 Rust 再次校验，未确认时不会发起正文请求。Anthropic 专用协议和自定义协议暂未实现。
+
+分析前必须同时满足：已选 Provider 和模型可用、用户在文件列表勾选至少一个支持文件、且至少有一个已启用分类。远程 Provider 还必须取得本次分析的明确发送同意。界面会说明未满足的条件；后端也会拒绝没有启用分类或远程同意缺失的请求。
 
 ### Windows、WSL2 与模型边界
 
@@ -36,7 +38,7 @@
 - 全局分类模板、根目录本地分类副本及安全删除已经实现；模板不会修改模型权重或物理目录。
 - 以 80–120 份真实非敏感文件完成黄金集评测与人工验收；在此之前不得标记为可发布。
 - 建立独立训练集并实际执行 QLoRA；现有训练指南和示例数据不代表训练已经完成。
-- 远程 Provider、OCR、XLSX、PPTX、旧版 DOC、多模态理解和 QLoRA 训练不属于首版。
+- Anthropic 专用协议、自定义协议、OCR、XLSX、PPTX、旧版 DOC、多模态理解和 QLoRA 训练不属于当前 Provider MVP。
 
 ## 数据流与接口
 
@@ -55,9 +57,12 @@
 
 前端只调用以下窄化 Command：
 
-- `get_ai_provider_status`：检查 Ollama 与指定模型是否可用。
+- `get_ai_provider_config`：读取不含密钥的当前 Provider 配置和 `api_key_present` 状态。
+- `save_ai_provider_config`：保存 Provider 元数据，并将 API Key 写入系统凭据存储；返回值不含密钥。
+- `test_ai_provider_connection`：只执行 Provider 健康检查，不发送文件正文。
+- `get_ai_provider_status`：检查当前 Provider 与指定模型是否可用。
 - `save_ai_categories` / `get_ai_categories`：管理稳定分类标签到授权根目录下单层目标目录的映射；配置和分析时目标目录可以尚不存在。
-- `start_analysis_batch` / `get_analysis_batch` / `cancel_analysis_batch`：管理单并发后台批次。
+- `start_analysis_batch` / `get_analysis_batch` / `cancel_analysis_batch`：管理单并发后台批次；请求携带 Provider ID，远程调用还必须携带本次内容发送同意。
 - `get_analysis_results`：读取派生结果，并在读取时重新检查待审查结果是否过期。
 - `review_analysis_result`：接受或拒绝建议；接受只返回操作草案，不执行文件操作。
 - `confirm_analysis_result_preview`：只接受分析结果 ID 与阶段四有效 `planId`；确认计划来源和内容指纹匹配后记录采用状态。
@@ -66,7 +71,7 @@
 
 ## 模型与输出
 
-Ollama `/api/chat` 请求固定 `stream: false`、`temperature: 0.1`、`num_predict: 1024`，并携带禁止额外字段的 JSON Schema。Rust 再次反序列化并校验：
+Ollama `/api/chat` 与 OpenAI 兼容 API `/chat/completions` 请求均固定非流式、低温度和有限输出，并携带禁止额外字段的 JSON Schema。OpenAI 兼容 API 使用 `Authorization: Bearer`，只在 Rust 适配器中读取系统凭据；Rust 再次反序列化并校验：
 
 - 摘要、理由和关键词非空，关键词不得重复；
 - 文件名不能包含路径或非法字符，扩展名必须保持不变；

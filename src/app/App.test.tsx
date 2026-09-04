@@ -31,6 +31,7 @@ const aiApi = vi.hoisted(() => ({
   getAiCategoryTemplates: vi.fn(),
   cancelAnalysisBatch: vi.fn(),
   getAiCategories: vi.fn(),
+  getAiProviderConfig: vi.fn(),
   getAiProviderStatus: vi.fn(),
   getAnalysisBatch: vi.fn(),
   getAnalysisResults: vi.fn(),
@@ -39,8 +40,10 @@ const aiApi = vi.hoisted(() => ({
   reviewAnalysisResult: vi.fn(),
   saveAiCategories: vi.fn(),
   saveAiCategoryTemplate: vi.fn(),
+  saveAiProviderConfig: vi.fn(),
   setGlobalAiCategoryTemplate: vi.fn(),
   startAnalysisBatch: vi.fn(),
+  testAiProviderConnection: vi.fn(),
 }));
 
 vi.mock("../lib/files-api", () => api);
@@ -67,6 +70,7 @@ describe("App", () => {
     operationsApi.previewOperations.mockResolvedValue({ canConfirm: false, planId: null, expiresAt: null, items: [] });
     operationsApi.undoOperation.mockResolvedValue({});
     aiApi.getAiProviderStatus.mockResolvedValue({ available: true, provider: "ollama", model: "qwen2.5:7b", message: "模型已就绪" });
+    aiApi.getAiProviderConfig.mockResolvedValue({ config: { id: "ollama-default", kind: "ollama", display_name: "本地 Ollama", base_url: "http://127.0.0.1:11434", model: "qwen2.5:7b", enabled: true }, api_key_present: false });
     aiApi.getAiCategories.mockResolvedValue([{ id: "work", name: "工作", description: "", directory_path: "C:/Documents/work", enabled: true }]);
     aiApi.getAiCategoryTemplates.mockResolvedValue([]);
     aiApi.saveAiCategoryTemplate.mockResolvedValue({ id: "template", name: "模板", version: 1, is_global: false, categories: [{ id: "work", name: "工作", description: "", default_enabled: true }] });

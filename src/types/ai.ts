@@ -5,6 +5,23 @@ export type ProviderStatus = {
   message: string;
 };
 
+export type ProviderKind = "ollama" | "open_ai_compatible";
+
+export type AiProviderConfig = {
+  id: string;
+  kind: ProviderKind;
+  display_name: string;
+  base_url: string;
+  model: string;
+  enabled: boolean;
+};
+
+export type PublicAiProviderConfig = {
+  config: AiProviderConfig;
+  api_key_present: boolean;
+};
+
+
 export type AiCategory = {
   id: string;
   name: string;

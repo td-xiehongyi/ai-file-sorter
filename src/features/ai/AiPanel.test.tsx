@@ -13,6 +13,7 @@ const aiApi = vi.hoisted(() => ({
   deleteAiCategoryTemplate: vi.fn(),
   getAiCategoryTemplates: vi.fn(),
   getAiCategories: vi.fn(),
+  getAiProviderConfig: vi.fn(),
   getAiProviderStatus: vi.fn(),
   getAnalysisBatch: vi.fn(),
   getAnalysisResults: vi.fn(),
@@ -21,8 +22,10 @@ const aiApi = vi.hoisted(() => ({
   reviewAnalysisResult: vi.fn(),
   saveAiCategoryTemplate: vi.fn(),
   saveAiCategories: vi.fn(),
+  saveAiProviderConfig: vi.fn(),
   setGlobalAiCategoryTemplate: vi.fn(),
   startAnalysisBatch: vi.fn(),
+  testAiProviderConnection: vi.fn(),
 }));
 
 vi.mock("../../lib/ai-api", () => aiApi);
@@ -38,6 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   progressListener = undefined;
   aiApi.getAiProviderStatus.mockResolvedValue({ available: true, provider: "ollama", model: "qwen2.5:7b", message: "模型已就绪" });
+  aiApi.getAiProviderConfig.mockResolvedValue({ config: { id: "ollama-default", kind: "ollama", display_name: "本地 Ollama", base_url: "http://127.0.0.1:11434", model: "qwen2.5:7b", enabled: true }, api_key_present: false });
   aiApi.getAiCategoryTemplates.mockResolvedValue([{ id: "default", name: "默认模板", version: 1, is_global: true, categories: [{ id: "work", name: "工作", description: "工作资料", default_enabled: true }] }]);
   aiApi.getAiCategories.mockResolvedValue([{ id: "work", name: "工作", description: "工作资料", directory_path: "C:/Docs/work", enabled: true }]);
   aiApi.listenForAnalysisProgress.mockImplementation(async (listener: (progress: AnalysisProgress) => void) => {
@@ -45,6 +49,8 @@ beforeEach(() => {
     return () => undefined;
   });
   aiApi.startAnalysisBatch.mockResolvedValue({ batch_id: "analysis-1" });
+  aiApi.testAiProviderConnection.mockResolvedValue({ available: true, provider: "open_ai_compatible", model: "gpt-test", message: "外部 API 模型已就绪" });
+  aiApi.saveAiProviderConfig.mockResolvedValue({ config: { id: "remote-api", kind: "open_ai_compatible", display_name: "外部 API", base_url: "https://api.example.com/v1", model: "gpt-test", enabled: true }, api_key_present: true });
   aiApi.getAnalysisResults.mockResolvedValue([{ id: "result-1", batch_id: "analysis-1", root_path: "C:/Docs", source_path: "C:/Docs/notes.md", content_fingerprint: "abc", provider: "ollama", model: "qwen2.5:7b", prompt_version: "phase5-v1", summary: "会议纪要", keywords: ["项目", "会议"], suggested_filename: "项目会议.md", category_id: "work", confidence: 0.9, reason: "工作资料", status: "pending", created_at: "1" }]);
   aiApi.reviewAnalysisResult.mockResolvedValue({ root_path: "C:/Docs", items: [{ operation: "ai_organize", source_path: "C:/Docs/notes.md", category_id: "work", new_name: "最终会议.md", content_fingerprint: "abc" }] });
   aiApi.saveAiCategories.mockResolvedValue([]);
@@ -109,6 +115,30 @@ it("keeps the category selector and analysis action accessible", async () => {
   expect(document.activeElement).toBe(selector);
   expect(screen.getByRole("option", { name: "默认模板 · 全局默认 · v1" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "分析所选文件（1）" })).not.toBeDisabled();
+});
+
+it("renders provider settings alongside the category template settings", async () => {
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} activeView="settings" onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
+
+  expect(await screen.findByRole("heading", { name: "选择模型 Provider" })).toBeInTheDocument();
+  expect(screen.getByRole("tab", { name: "API 模型" })).toBeInTheDocument();
+});
+
+it("requires confirmation before sending selected content to a remote provider", async () => {
+  aiApi.getAiProviderConfig.mockResolvedValue({ config: { id: "remote-api", kind: "open_ai_compatible", display_name: "外部 API", base_url: "https://api.example.com/v1", model: "gpt-test", enabled: true }, api_key_present: true });
+  aiApi.getAiProviderStatus.mockResolvedValue({ available: true, provider: "open_ai_compatible", model: "gpt-test", message: "外部 API 模型已就绪" });
+  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<AiPanel rootPath="C:/Docs" selectedEntries={selectedEntries} onPreview={vi.fn()} onChooseDirectory={vi.fn()} />);
+
+  expect(await screen.findByText("外部 API 模型已就绪")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "分析所选文件（1）" }));
+
+  expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("所选文件正文会发送到"));
+  await waitFor(() => expect(aiApi.startAnalysisBatch).toHaveBeenCalledWith(expect.objectContaining({
+    provider_id: "remote-api",
+    remote_content_consent: true,
+  })));
+  confirmSpy.mockRestore();
 });
 
 it("submits the selected saved template as the analysis category source", async () => {

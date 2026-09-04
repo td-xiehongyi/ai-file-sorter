@@ -1,6 +1,7 @@
 use crate::models::ai::{AiSuggestionPayload, Category};
 
 pub mod ollama;
+pub mod openai_compatible;
 
 pub const PROMPT_VERSION: &str = "phase5-v1";
 

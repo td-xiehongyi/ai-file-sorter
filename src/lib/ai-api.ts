@@ -10,10 +10,29 @@ import type {
   AnalysisTask,
   ProviderStatus,
 } from "../types/ai";
+import type { AiProviderConfig, PublicAiProviderConfig } from "../types/ai";
 import type { OperationDraft } from "../types/operations";
 
 export function getAiProviderStatus(model?: string): Promise<ProviderStatus> {
   return invoke("get_ai_provider_status", { model });
+}
+
+export function getAiProviderConfig(): Promise<PublicAiProviderConfig> {
+  return invoke("get_ai_provider_config");
+}
+
+export function saveAiProviderConfig(request: {
+  config: AiProviderConfig;
+  api_key?: string;
+}): Promise<PublicAiProviderConfig> {
+  return invoke("save_ai_provider_config", { request });
+}
+
+export function testAiProviderConnection(request: {
+  config: AiProviderConfig;
+  api_key?: string;
+}): Promise<ProviderStatus> {
+  return invoke("test_ai_provider_connection", { request });
 }
 
 export function getAiCategories(rootPath: string): Promise<AiCategory[]> {
@@ -68,6 +87,8 @@ export function startAnalysisBatch(request: {
   file_paths: string[];
   model: string;
   category_source?: AnalysisCategorySource;
+  provider_id?: string;
+  remote_content_consent?: boolean;
 }): Promise<{ batch_id: string }> {
   return invoke("start_analysis_batch", { request });
 }

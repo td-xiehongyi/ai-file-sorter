@@ -108,7 +108,7 @@ fn rebuilding_the_file_index_preserves_ai_configuration_and_results() {
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 8);
 }
 
 #[test]

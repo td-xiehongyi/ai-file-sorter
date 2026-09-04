@@ -4,26 +4,37 @@ use std::time::SystemTime;
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use crate::ai::AiProvider;
 use crate::ai::ProviderStatus;
-use crate::ai::ollama::{DEFAULT_MODEL, DEFAULT_OLLAMA_ENDPOINT, OllamaProvider};
+use crate::ai::ollama::DEFAULT_MODEL;
 use crate::commands::AppError;
 use crate::models::ai::{
     AiAnalysisRecord, AnalysisBatchStatus, AnalysisResultStatus, AnalysisTaskSnapshot, Category,
     CategoryTemplate, TemplateCategory,
 };
+use crate::models::ai_provider::{
+    AiProviderConfig, ProviderKind, PublicAiProviderConfig, SaveAiProviderConfigRequest,
+    TestAiProviderRequest, validate_provider_config,
+};
 use crate::models::operation::OperationDraft;
 use crate::services::analysis_service;
 use crate::services::analysis_task_store::AnalysisTaskStore;
 use crate::services::suggestion_review::{self, ReviewAction};
-use crate::services::{path_policy, watcher};
-use crate::storage::{ai_repository, app_paths, database};
+use crate::services::{
+    path_policy, provider_registry,
+    secret_store::{PlatformSecretStore, SECRET_SERVICE, SecretStore},
+    watcher,
+};
+use crate::storage::{ai_provider_repository, ai_repository, app_paths, database};
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct StartAnalysisRequest {
     pub root_path: String,
     pub file_paths: Vec<String>,
     pub model: Option<String>,
+    #[serde(default)]
+    pub provider_id: Option<String>,
+    #[serde(default)]
+    pub remote_content_consent: bool,
     #[serde(default)]
     pub category_source: Option<AnalysisCategorySource>,
 }
@@ -102,16 +113,80 @@ fn delete_batch_results(database_path: &Path, batch_id: &str) {
 }
 
 #[tauri::command]
-pub fn get_ai_provider_status(model: Option<String>) -> ProviderStatus {
-    let model = configured_model(model);
-    match OllamaProvider::new(DEFAULT_OLLAMA_ENDPOINT.into(), model.clone())
+pub fn get_ai_provider_config<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<PublicAiProviderConfig, AppError> {
+    let config = active_provider_config(&app)?;
+    provider_registry::public_provider_config(Some(config), &PlatformSecretStore)
+        .map_err(Into::into)
+}
+
+#[tauri::command]
+pub fn save_ai_provider_config<R: Runtime>(
+    app: AppHandle<R>,
+    request: SaveAiProviderConfigRequest,
+) -> Result<PublicAiProviderConfig, AppError> {
+    validate_provider_config(&request.config)?;
+    let secret_store = PlatformSecretStore;
+    if matches!(request.config.kind, ProviderKind::OpenAiCompatible)
+        && let Some(api_key) = request.api_key.as_deref()
+    {
+        if api_key.trim().is_empty() {
+            secret_store.delete(SECRET_SERVICE, &request.config.id)?;
+        } else {
+            secret_store.set(SECRET_SERVICE, &request.config.id, api_key)?;
+        }
+    }
+    let mut connection = open_database(&app)?;
+    let config = ai_provider_repository::save_active_provider(&mut connection, &request.config)
+        .map_err(|error| error.to_string())?;
+    provider_registry::public_provider_config(Some(config), &secret_store).map_err(Into::into)
+}
+
+#[tauri::command]
+pub fn test_ai_provider_connection(
+    request: TestAiProviderRequest,
+) -> Result<ProviderStatus, AppError> {
+    let provider = provider_registry::resolve_provider_with_key(
+        request.config,
+        request.api_key,
+        &PlatformSecretStore,
+    )?;
+    provider.health().map_err(Into::into)
+}
+
+#[tauri::command]
+pub fn get_ai_provider_status<R: Runtime>(
+    app: AppHandle<R>,
+    model: Option<String>,
+) -> ProviderStatus {
+    let mut config = match active_provider_config(&app) {
+        Ok(config) => config,
+        Err(message) => {
+            return ProviderStatus {
+                available: false,
+                provider: "ollama".into(),
+                model: configured_model(model),
+                message: message.message,
+            };
+        }
+    };
+    if matches!(config.kind, ProviderKind::Ollama) {
+        config.model = configured_model(model);
+    }
+    let provider_name = match config.kind {
+        ProviderKind::Ollama => "ollama",
+        ProviderKind::OpenAiCompatible => "open_ai_compatible",
+    };
+    let provider_model = config.model.clone();
+    match provider_registry::resolve_provider(Some(config), &PlatformSecretStore)
         .and_then(|provider| provider.health())
     {
         Ok(status) => status,
         Err(message) => ProviderStatus {
             available: false,
-            provider: "ollama".into(),
-            model,
+            provider: provider_name.into(),
+            model: provider_model,
             message,
         },
     }
@@ -325,8 +400,23 @@ pub fn start_analysis_batch<R: Runtime>(
     if !categories.iter().any(|category| category.enabled) {
         return Err("请先配置至少一个启用的分类".to_string().into());
     }
-    let model = configured_model(request.model);
-    let provider = OllamaProvider::new(DEFAULT_OLLAMA_ENDPOINT.into(), model)?;
+    let mut provider_config = ai_provider_repository::read_active_provider(&connection)
+        .map_err(|error| error.to_string())?
+        .unwrap_or_else(provider_registry::default_provider_config);
+    if let Some(provider_id) = request.provider_id.as_deref()
+        && provider_id != provider_config.id
+    {
+        return Err("Provider 配置已变化，请刷新后重试".to_string().into());
+    }
+    if matches!(provider_config.kind, ProviderKind::Ollama) {
+        provider_config.model = configured_model(request.model.clone());
+    }
+    provider_registry::ensure_remote_content_consent(
+        &provider_config.kind,
+        request.remote_content_consent,
+    )?;
+    let provider =
+        provider_registry::resolve_provider(Some(provider_config), &PlatformSecretStore)?;
     let health = provider.health()?;
     if !health.available {
         return Err(health.message.into());
@@ -372,7 +462,7 @@ pub fn start_analysis_batch<R: Runtime>(
                     template
                         .as_ref()
                         .map(|(id, version)| (id.as_str(), *version)),
-                    &provider,
+                    &*provider,
                     || {
                         let store = cancel_app.state::<AnalysisTaskStore>();
                         if store.is_cancelled(&batch_id) {
@@ -769,6 +859,13 @@ fn open_database<R: Runtime>(app: &AppHandle<R>) -> Result<rusqlite::Connection,
         .map_err(|error| error.to_string())?;
     database::open_database(&app_paths::database_path(&directory))
         .map_err(|error| error.to_string().into())
+}
+
+fn active_provider_config<R: Runtime>(app: &AppHandle<R>) -> Result<AiProviderConfig, AppError> {
+    let connection = open_database(app)?;
+    ai_provider_repository::read_active_provider(&connection)
+        .map_err(|error| error.to_string().into())
+        .map(|config| config.unwrap_or_else(provider_registry::default_provider_config))
 }
 
 fn configured_model(model: Option<String>) -> String {

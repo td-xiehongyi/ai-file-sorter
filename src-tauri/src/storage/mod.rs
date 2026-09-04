@@ -1,5 +1,6 @@
 //! Local persistence boundaries live here.
 
+pub mod ai_provider_repository;
 pub mod ai_repository;
 pub mod app_paths;
 pub mod database;

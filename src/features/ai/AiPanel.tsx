@@ -8,6 +8,7 @@ import {
   deleteAiCategoryTemplate,
   getAiCategoryTemplates,
   getAiCategories,
+  getAiProviderConfig,
   getAiProviderStatus,
   getAnalysisBatch,
   getAnalysisResults,
@@ -16,14 +17,17 @@ import {
   reviewAnalysisResult,
   saveAiCategoryTemplate,
   saveAiCategories,
+  saveAiProviderConfig,
   setGlobalAiCategoryTemplate,
   startAnalysisBatch,
+  testAiProviderConnection,
 } from "../../lib/ai-api";
-import type { AiAnalysisResult, AiCategory, AiCategoryTemplate, AnalysisCategorySource, AnalysisProgress, AnalysisTask, ProviderStatus, TemplateCategory } from "../../types/ai";
+import type { AiAnalysisResult, AiCategory, AiCategoryTemplate, AnalysisCategorySource, AnalysisProgress, AnalysisTask, ProviderStatus, PublicAiProviderConfig, TemplateCategory } from "../../types/ai";
 import type { OperationDraft, OperationPreviewResponse } from "../../types/operations";
 import type { SearchEntry } from "../../types/search";
 import { AnalysisSetupBar } from "./AnalysisSetupBar";
 import { AiReviewView } from "./AiReviewView";
+import { ProviderSettingsView, type ProviderRequest } from "./ProviderSettingsView";
 import { TemplateSettingsView } from "./TemplateSettingsView";
 
 type Props = {
@@ -72,6 +76,7 @@ function isSupportedEntry(entry: SearchEntry): boolean {
 export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview, activeView = "ai", onNavigate }: Props) {
   const [model, setModel] = useState("qwen2.5:7b");
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
+  const [providerConfig, setProviderConfig] = useState<PublicAiProviderConfig | null>(null);
   const [categories, setCategories] = useState<AiCategory[]>([]);
   const [templates, setTemplates] = useState<AiCategoryTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -114,7 +119,9 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview
   const analysisBlockedReason = setupLoading
     ? "正在加载模型状态和分类配置…"
     : !provider?.available
-      ? `本地模型不可用：${provider?.message ?? "无法读取模型状态。"}。请确认 Ollama 已启动且模型名称正确，然后刷新状态。`
+      ? provider?.provider === "ollama"
+        ? `本地模型不可用：${provider?.message ?? "无法读取模型状态。"}。请确认 Ollama 已启动且模型名称正确，然后刷新状态。`
+        : `当前模型不可用：${provider?.message ?? "无法读取模型状态。"}。请检查 Provider 配置后刷新状态。`
       : supportedFiles.length === 0
         ? "请在文件列表中勾选至少一个 TXT、MD、PDF、DOCX 或常见代码/配置文件。"
         : !analysisSource
@@ -130,6 +137,8 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview
     processed: results.filter((result) => result.status !== "pending").length,
     total: results.length,
   };
+  const isRemoteProvider = providerConfig?.config.kind === "open_ai_compatible"
+    || provider?.provider === "open_ai_compatible";
 
   useEffect(() => {
     const generation = ++templateRefreshGeneration.current;
@@ -137,10 +146,11 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview
     setProvider(null);
     setError(null);
     setSetupLoading(true);
-    void Promise.all([getAiProviderStatus(model), getAiCategories(rootPath), getAiCategoryTemplates()])
-      .then(([status, storedCategories, storedTemplates]) => {
+    void Promise.all([getAiProviderStatus(model), getAiProviderConfig(), getAiCategories(rootPath), getAiCategoryTemplates()])
+      .then(([status, storedProviderConfig, storedCategories, storedTemplates]) => {
         if (!cancelled && generation === templateRefreshGeneration.current) {
           setProvider(status);
+          setProviderConfig(storedProviderConfig);
           setCategories(storedCategories);
           setSavedCategoryIds(new Set(storedCategories.map((category) => category.id)));
           setTemplates(storedTemplates);
@@ -267,6 +277,7 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview
       setError("请选择一个分类方案后再开始分析。");
       return;
     }
+    if (isRemoteProvider && !window.confirm(`所选文件正文会发送到远程 Provider：${providerConfig?.config.display_name ?? provider?.provider ?? "外部 API"} · ${model} · ${providerConfig?.config.base_url ?? "配置的 API 地址"}，可能包含敏感信息。是否继续？`)) return;
     setError(null);
     setResults([]);
     setReviewDecisions({});
@@ -275,12 +286,17 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview
     setCancelRequested(false);
     setBusy(true);
     try {
-      const response = await startAnalysisBatch({
+      const request = {
         root_path: rootPath,
         file_paths: supportedFiles.map((entry) => entry.normalized_path),
         model,
         category_source: source,
-      });
+        ...(isRemoteProvider ? {
+          provider_id: providerConfig?.config.id,
+          remote_content_consent: true,
+        } : {}),
+      };
+      const response = await startAnalysisBatch(request);
       setBatchId(response.batch_id);
       setProgress({ batch_id: response.batch_id, phase: "processing", completed_files: 0, total_files: supportedFiles.length, current_path: null, error_count: 0 });
     } catch (cause) {
@@ -350,6 +366,17 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview
     setSelectedTemplateId(templateId);
     setTemplateDraft(templates.find((template) => template.id === templateId) ?? null);
     setTemplateDirty(false);
+  }
+
+  async function testProvider(request: ProviderRequest) {
+    return testAiProviderConnection(request);
+  }
+
+  async function saveProvider(request: ProviderRequest) {
+    const saved = await saveAiProviderConfig(request);
+    setProviderConfig(saved);
+    setModel(saved.config.model);
+    setProvider(await getAiProviderStatus(saved.config.model));
   }
 
   async function refreshTemplateLibrary(preferredId?: string) {
@@ -635,44 +662,52 @@ export function AiPanel({ rootPath, selectedEntries, onPreview, onDiscardPreview
 
   const settingsViewOpen = activeView === "settings" || (configOpen && !onNavigate);
   if (settingsViewOpen) {
-    return <TemplateSettingsView
-      categories={categories}
-      templates={templates}
-      selectedTemplateId={selectedTemplateId}
-      templateDraft={templateDraft}
-      templateDirty={templateDirty}
-      renamingTemplateId={renamingTemplateId}
-      renameDraft={renameDraft}
-      error={error}
-      showClose={settingsOpenedFromAction || (!onNavigate && activeView !== "settings")}
-      onClose={closeSettings}
-      onNewTemplate={newTemplate}
-      onSelectTemplate={selectTemplate}
-      onRenameTemplate={beginRenameTemplate}
-      onRenameDraftChange={setRenameDraft}
-      onConfirmRename={() => void renameTemplate()}
-      onCancelRename={cancelRenameTemplate}
-      onMakeGlobal={(template) => void makeGlobal(template)}
-      onRemoveTemplate={(template) => void removeTemplate(template)}
-      onTemplateNameChange={(value) => {
-        if (!templateDraft) return;
-        setTemplateDraft({ ...templateDraft, name: value });
-        setTemplateDirty(true);
-      }}
-      onTemplateCategoryChange={(index, field, value) => {
-        if (!templateDraft) return;
-        setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, field, value) });
-        setTemplateDirty(true);
-      }}
-      onAddTemplateCategory={addTemplateCategory}
-      onRemoveTemplateCategory={removeTemplateCategory}
-      onSaveTemplate={() => void saveTemplate()}
-      onCategoryChange={updateCategory}
-      onCategoryIdChange={updateCategoryId}
-      onRemoveCategory={(category, index) => void removeCategory(category, index)}
-      onAddCategory={addCategory}
-      onSaveCategories={() => void saveCategories()}
-    />;
+    return <>
+      {providerConfig && <ProviderSettingsView
+        config={providerConfig}
+        status={provider}
+        onTest={testProvider}
+        onSave={saveProvider}
+      />}
+      <TemplateSettingsView
+        categories={categories}
+        templates={templates}
+        selectedTemplateId={selectedTemplateId}
+        templateDraft={templateDraft}
+        templateDirty={templateDirty}
+        renamingTemplateId={renamingTemplateId}
+        renameDraft={renameDraft}
+        error={error}
+        showClose={settingsOpenedFromAction || (!onNavigate && activeView !== "settings")}
+        onClose={closeSettings}
+        onNewTemplate={newTemplate}
+        onSelectTemplate={selectTemplate}
+        onRenameTemplate={beginRenameTemplate}
+        onRenameDraftChange={setRenameDraft}
+        onConfirmRename={() => void renameTemplate()}
+        onCancelRename={cancelRenameTemplate}
+        onMakeGlobal={(template) => void makeGlobal(template)}
+        onRemoveTemplate={(template) => void removeTemplate(template)}
+        onTemplateNameChange={(value) => {
+          if (!templateDraft) return;
+          setTemplateDraft({ ...templateDraft, name: value });
+          setTemplateDirty(true);
+        }}
+        onTemplateCategoryChange={(index, field, value) => {
+          if (!templateDraft) return;
+          setTemplateDraft({ ...templateDraft, categories: updateTemplateCategory(templateDraft.categories, index, field, value) });
+          setTemplateDirty(true);
+        }}
+        onAddTemplateCategory={addTemplateCategory}
+        onRemoveTemplateCategory={removeTemplateCategory}
+        onSaveTemplate={() => void saveTemplate()}
+        onCategoryChange={updateCategory}
+        onCategoryIdChange={updateCategoryId}
+        onRemoveCategory={(category, index) => void removeCategory(category, index)}
+        onAddCategory={addCategory}
+        onSaveCategories={() => void saveCategories()}
+      />
+    </>;
   }
 
   if (activeView === "files") {

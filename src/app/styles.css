@@ -592,6 +592,127 @@ body {
   color: #9b773b;
 }
 
+.provider-settings {
+  display: grid;
+  gap: 14px;
+  padding: 15px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 15px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.provider-settings-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.provider-settings-heading h3 {
+  margin: 4px 0 0;
+  font-size: 17px;
+}
+
+.provider-settings-heading p {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.provider-tabs {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #f5f2eb;
+}
+
+.provider-tab {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.provider-tab.is-active {
+  background: #e6ede3;
+  color: #41684d;
+  font-weight: 700;
+}
+
+.provider-local-state,
+.provider-feedback,
+.provider-security-note,
+.provider-remote-warning {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.provider-local-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #cbd6c9;
+  background: #eef3eb;
+}
+
+.provider-local-state span {
+  color: var(--color-muted);
+}
+
+.provider-local-state .provider-state-ready,
+.provider-feedback.is-ready {
+  color: #41684d;
+}
+
+.provider-api-form {
+  display: grid;
+  gap: 12px;
+}
+
+.provider-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.provider-security-note {
+  border: 1px solid #cbd6c9;
+  background: #f4f8f1;
+  color: #57715d;
+}
+
+.provider-remote-warning {
+  margin: 0;
+  border: 1px solid #e4d7b9;
+  background: #fbf7eb;
+  color: #80663a;
+}
+
+.provider-feedback {
+  border: 1px solid var(--color-border);
+}
+
+.provider-feedback.is-warning {
+  border-color: #e4c8c0;
+  background: #fff5f1;
+  color: #8f554b;
+}
+
+.provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .selection-feedback {
   display: flex;
   flex-wrap: wrap;
@@ -1514,7 +1635,8 @@ select:disabled {
   }
 
   .selection-bar,
-  .ai-settings-row {
+  .ai-settings-row,
+  .provider-form-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1620,6 +1742,7 @@ select:disabled {
   }
 
   .ai-view-heading,
+  .provider-settings-heading,
   .template-section-heading,
   .ai-result-heading {
     flex-direction: column;
