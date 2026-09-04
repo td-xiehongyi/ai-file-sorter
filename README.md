@@ -69,6 +69,14 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm tauri build --debug
 ```
 
+### 给其他人安装
+
+普通用户不需要安装 Node.js、pnpm、Rust 或源代码。维护者发布版本后，请让用户从 GitHub Releases 下载 Windows x64 的 `*-setup.exe`，双击安装即可。安装包会包含应用本身；如果电脑缺少 WebView2，安装器会尝试联网安装运行时。
+
+文件扫描、浏览、搜索、手动移动、重命名和撤销不依赖 AI。要使用内容分析和分类建议，用户还需要在应用设置中配置本地 Ollama 与模型，或配置 OpenAI 兼容 API。具体发布和验收步骤见[Windows 分发与发布验收](./docs/DISTRIBUTION_WINDOWS.md)。
+
+向 GitHub 推送形如 `v0.1.0` 的版本标签后，GitHub Actions 会在 Windows runner 上运行检查、构建 NSIS/MSI 安装包并创建 Draft Release。发布前仍必须在干净 Windows 电脑上完成桌面人工验收；未签名安装包可能触发 Windows SmartScreen 的“未知发布者”提示。
+
 当前应用只注册扫描、索引状态、索引重建、最近索引恢复、搜索、操作和阶段五 AI 分析等窄化 Tauri Command，并只授予原生目录选择所需的 Dialog 权限。前端不能直接访问文件系统、SQLite、Ollama 或 Shell；只有用户选择目录后才会启动只读扫描和授权范围内的变化监听，且文件写入必须经由一次性操作计划。
 
 ## 核心原则

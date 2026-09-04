@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "evaluate:ai": "node scripts/evaluate-ai.ts",
     "check": "pnpm typecheck && pnpm test && pnpm build",
-    "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-phase5 --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-phase5",
+    "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-phase5-clippy --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-phase5-test -j 1",
     "check:all": "pnpm check && pnpm check:rust && git diff --check",
     "tauri": "tauri"
   },
